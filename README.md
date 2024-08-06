@@ -1,11 +1,12 @@
 # The Galois Programming Language
 
+A language by [zaphlambda](https://zaph.dev)
+
 ## Installation:
 
-Currently only on cargo:
+Only source for now.
 
-```bash
-cargo install galois-lang
-```
+## Acknowledgements
 
-A language by [zaphlambda](https://zaph.dev)
+- Penn faculty (see design.md).
+- Tinygrad for a lot of inspiration

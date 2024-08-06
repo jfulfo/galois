@@ -1,4 +1,7 @@
+def add(a,b): 
+   a(b)
+
 def main(x,y):
-   x(y)
+   add(x,y)
 
 main()

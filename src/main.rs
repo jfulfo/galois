@@ -62,7 +62,12 @@ fn main() {
     let filename = &args[1];
     let content = fs::read_to_string(filename).expect("Failed to read file");
 
-    match parse_program(&content) {
+    println!("=========PROGRAM=========\n{}\n=========================", content);
+    let parse = parse_program(&content);
+    println!("");
+    println!("=========PARSED==========\n{:?}\n========================", parse);
+
+    match parse {
         Ok((_, expr)) => {
             let mut env = Environment::new();
             let result = eval(&expr, &mut env);
