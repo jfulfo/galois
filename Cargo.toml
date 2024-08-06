@@ -1,0 +1,15 @@
+cargo-features = ["edition2024", "profile-rustflags"]
+
+[workspace]
+[profile.dev]
+rustflags = ["-Adead_code"]
+
+[package]
+name = "galois"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+ndarray = "0.16.0"
+nom = "7.1.3"
+tokio = "1.39.2"
