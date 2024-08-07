@@ -83,6 +83,28 @@ fn parse_function_call(input: &str) -> IResult<&str, Expr> {
     ))
 }
 
+// fn parse_notation_def(input: &str) -> IResult<&str, Expr> {
+//     let (input, _) = tag("notation")(input)?;
+//     let (input, _) = multispace1(input)?;
+//     let (input, name) = parse_identifier(input)?;
+//     let (input, _) = multispace1(input)?;
+//     let (input, precedence) = parse_int(input)?;
+//     let (input, _) = multispace0(input)?;
+//     let (input, _) = tag(":=")(input)?;
+//     let (input, _) = multispace0(input)?;
+//     let (input, pattern) = parse_expr(input)?;
+//     let (input, _) = multispace0(input)?;
+//     let (input, _) = tag("=>")(input)?;
+//     let (input, _) = multispace0(input)?;
+//     let (input, expansion) = parse_expr(input)?;
+//
+//     Ok((input, Expr::Notation(name, precedence, Box::new(pattern), Box::new(expansion))))
+// }
+//
+// fn parse_notation_use(input: &str) -> IResult<&str, Expr> {
+//     parse_function_call(input)
+// }
+//
 fn parse_expr(input: &str) -> IResult<&str, Expr> {
     alt((
         parse_int,
@@ -92,6 +114,6 @@ fn parse_expr(input: &str) -> IResult<&str, Expr> {
     ))(input)
 }
 
-pub fn parse_program(input: &str) -> IResult<&str, Expr> {
-    terminated(parse_expr, multispace0)(input)
+pub fn parse_program(input: &str) -> IResult<&str, Vec<Expr>> {
+    many0(terminated(parse_expr, multispace0))(input)
 }

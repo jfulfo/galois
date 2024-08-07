@@ -20,6 +20,8 @@ pub enum Expr {
     Variable(String),
     FunctionDef(String, Vec<String>, Box<Expr>),
     FunctionCall(Box<Expr>, Vec<Expr>),
+    // Notation(String, i32, Box<Expr>, Box<Expr>),
+    // NotationUse(String, Vec<Expr>),
 }
 
 #[derive(Debug, Clone)]

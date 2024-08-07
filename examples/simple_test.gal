@@ -1,7 +1,20 @@
-def add(a,b): 
-   a(b)
+def compose(f, g):
+    def composed(x):
+        f(g(x))
+    composed
 
-def main(x,y):
-   add(x,y)
+def add_one(x):
+    def inner(y):
+        y
+    inner(x)
+
+def double(x):
+    def inner(y):
+        y
+    inner(x)
+
+def main():
+    increment_then_double = compose(double, add_one)
+    increment_then_double(5)
 
 main()

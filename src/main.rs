@@ -1,90 +1,64 @@
-/*
-* For now we only implement a basic interpreter
-*/
+// main.rs
 
 mod parser;
 mod syntax;
+mod debug;
+mod interpreter;
 
 use std::fs;
+use std::env;
 use parser::parse_program;
-use syntax::{Environment, Expr, Value};
-
-fn eval(expr: &Expr, env: &mut Environment) -> Value {
-    match expr {
-        Expr::Primitive(p) => Value::Primitive(p.clone()),
-        Expr::Variable(name) => env
-            .get(name)
-            .expect(&format!("Variable not found: {}", name))
-            .clone(),
-        Expr::FunctionDef(name, params, body) => Value::Function(
-            name.clone(),
-            params.clone(),
-            body.clone(),
-            env.clone(),
-        ),
-        Expr::FunctionCall(func, args) => {
-            let func_value = eval(func, env);
-            let arg_values: Vec<Value> = args.iter().map(|arg| eval(arg, env)).collect();
-            apply_function(func_value, arg_values)
-        }
-    }
-}
-
-fn apply_function(mut func: Value, args: Vec<Value>) -> Value {
-    match func {
-        Value::Function(ref name, ref params, ref body, ref mut closure_env) => {
-            if args.len() < params.len() {
-                Value::PartialApplication(Box::new(func), args)
-            } else if args.len() == params.len() {
-                for (param, arg) in params.iter().zip(args.iter()) {
-                    closure_env.insert(param.clone(), arg.clone());
-                }
-                eval(&body, closure_env)
-            } else {
-                panic!("Too many arguments for function: {}", name);
-            }
-        }
-        Value::PartialApplication(func, mut prev_args) => {
-            prev_args.extend(args);
-            apply_function(*func, prev_args)
-        }
-        _ => panic!("Attempted to call a non-function value"),
-    }
-}
+use syntax::Environment;
+use debug::DebugPrinter;
+use interpreter::interpret;
 
 fn main() {
-    let args: Vec<String> = std::env::args().collect();
-    if args.len() != 2 {
-        eprintln!("Usage: {} <filename.gal>", args[0]);
+    let args: Vec<String> = env::args().collect();
+    if args.len() < 2 {
+        eprintln!("Usage: {} <filename.gal> [--debug]", args[0]);
         std::process::exit(1);
     }
 
     let filename = &args[1];
-    let content = fs::read_to_string(filename).expect("Failed to read file");
+    let debug_mode = args.contains(&"--debug".to_string());
+    
+    let content = fs::read_to_string(filename)
+        .unwrap_or_else(|e| {
+            eprintln!("Error reading file '{}': {}", filename, e);
+            std::process::exit(1);
+        });
 
-    println!("=========PROGRAM=========\n{}\n=========================", content);
-    let parse = parse_program(&content);
-    println!("");
-    println!("=========PARSED==========\n{:?}\n========================", parse);
+    let mut debug_printer = DebugPrinter::new(debug_mode);
 
-    match parse {
-        Ok((_, expr)) => {
+    if debug_mode {
+        debug_printer.log_program(&content);
+    }
+
+    match parse_program(&content) {
+        Ok((_, exprs)) => {  // Note: parse_program should now return Vec<Expr>
+            if debug_mode {
+                debug_printer.log_parsed(&exprs);
+            }
+
             let mut env = Environment::new();
-            let result = eval(&expr, &mut env);
-            match result {
-                Value::Primitive(p) => println!("Result: {:?}", p),
-                Value::Function(name, params, _, _) => {
-                    println!("Final state: Function '{}' with parameters {:?}", name, params);
-                    println!("Note: Program ended with a fully defined function.");
-                }
-                Value::PartialApplication(func, args) => {
-                    if let Value::Function(name, params, _, _) = *func {
-                        println!("Final state: Partial application of function '{}' with {} out of {} arguments supplied", name, args.len(), params.len());
-                        println!("Note: Program could not step further due to insufficient arguments.");
+            let mut final_result = None;
+
+            for expr in exprs {
+                match interpret(&expr, &mut env, &mut debug_printer) {
+                    Ok(result) => {
+                        final_result = Some(result);
+                    },
+                    Err(e) => {
+                        eprintln!("Runtime error: {}", e);
+                        std::process::exit(1);
                     }
                 }
             }
+
+            if let Some(result) = final_result {
+                println!("{:?}", result);
+            }
         }
-        Err(e) => eprintln!("Failed to parse program: {:?}", e),
+        Err(e) => eprintln!("Parse error: {}", e),
     }
 }
