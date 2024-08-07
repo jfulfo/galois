@@ -2,167 +2,246 @@
 
 use nom::{
     branch::alt,
-    bytes::complete::{tag, take_until},
-    character::complete::{alpha1, alphanumeric1, char, digit1, multispace1},
-    combinator::{map, opt, recognize},
+    bytes::complete::{tag, take_until, take_while1},
+    character::complete::{alpha1, alphanumeric1, char, digit1, multispace1, one_of},
+    combinator::{all_consuming, map, opt, recognize, value},
+    error::{context, VerboseError},
     multi::{many0, many1, separated_list0},
-    sequence::{delimited, pair, preceded, tuple},
+    sequence::{delimited, pair, preceded, terminated, tuple},
     IResult,
 };
 
 use crate::syntax::{Expr, Primitive};
 
-fn parse_comment(input: &str) -> IResult<&str, ()> {
-    alt((
-        // Single-line comment
-        map(preceded(tag("//"), take_until("\n")), |_| ()),
-        // Multi-line comment
-        map(delimited(tag("/*"), take_until("*/"), tag("*/")), |_| ()),
-    ))(input)
-}
+type ParseResult<'a, O> = IResult<&'a str, O, VerboseError<&'a str>>;
 
-fn ws(input: &str) -> IResult<&str, ()> {
-    map(
-        many0(alt((map(multispace1, |_| ()), parse_comment))),
-        |_| (),
-    )(input)
-}
-
-fn parse_primitive(input: &str) -> IResult<&str, Expr> {
-    alt((
-        map(parse_int, |i| Expr::Primitive(Primitive::Int(i))),
-        map(parse_float, |f| Expr::Primitive(Primitive::Float(f))),
-        map(parse_string, |s| Expr::Primitive(Primitive::String(s))),
-        map(parse_bool, |b| Expr::Primitive(Primitive::Bool(b))),
-    ))(input)
-}
-
-fn parse_int(input: &str) -> IResult<&str, i64> {
-    map(recognize(pair(opt(char('-')), digit1)), |s: &str| {
-        s.parse().unwrap()
-    })(input)
-}
-
-fn parse_float(input: &str) -> IResult<&str, f64> {
-    map(
-        recognize(tuple((
-            opt(char('-')),
-            digit1,
-            char('.'),
-            digit1,
-            opt(tuple((char('e'), opt(alt((char('+'), char('-')))), digit1))),
+fn ws(input: &str) -> ParseResult<()> {
+    value(
+        (),
+        many0(alt((
+            value((), multispace1),
+            value((), preceded(tag("//"), take_until("\n"))),
+            value((), delimited(tag("/*"), take_until("*/"), tag("*/"))),
         ))),
-        |s: &str| s.parse().unwrap(),
     )(input)
 }
 
-fn parse_string(input: &str) -> IResult<&str, String> {
-    delimited(
-        char('"'),
-        map(
-            many0(alt((
-                map(take_until("\\\""), String::from),
-                map(tag("\\\""), |_| String::from("\"")),
-            ))),
-            |v| v.concat(),
-        ),
-        char('"'),
-    )(input)
-}
-
-fn parse_bool(input: &str) -> IResult<&str, bool> {
-    alt((map(tag("true"), |_| true), map(tag("false"), |_| false)))(input)
-}
-
-fn parse_variable(input: &str) -> IResult<&str, Expr> {
-    map(
-        recognize(pair(
-            alt((alpha1, tag("_"))),
-            many0(alt((alphanumeric1, tag("_")))),
-        )),
-        |s: &str| Expr::Variable(s.to_string()),
-    )(input)
-}
-
-fn parse_function_def(input: &str) -> IResult<&str, Expr> {
-    map(
-        tuple((
-            preceded(pair(tag("def"), ws), parse_variable),
-            delimited(
-                char('('),
-                separated_list0(delimited(ws, char(','), ws), parse_variable),
-                char(')'),
-            ),
-            preceded(delimited(ws, char(':'), ws), parse_expr),
-        )),
-        |(name, params, body)| {
-            if let Expr::Variable(name) = name {
-                Expr::FunctionDef(
-                    name,
-                    params
-                        .into_iter()
-                        .map(|e| {
-                            if let Expr::Variable(name) = e {
-                                name
-                            } else {
-                                panic!("Expected variable in function parameters")
-                            }
-                        })
-                        .collect(),
-                    Box::new(body),
-                )
-            } else {
-                panic!("Expected variable name for function")
-            }
-        },
-    )(input)
-}
-
-fn parse_function_call(input: &str) -> IResult<&str, Expr> {
-    map(
-        pair(
-            parse_term,
-            delimited(
-                char('('),
-                separated_list0(delimited(ws, char(','), ws), parse_expr),
-                char(')'),
-            ),
-        ),
-        |(func, args)| Expr::FunctionCall(Box::new(func), args),
-    )(input)
-}
-
-fn parse_return(input: &str) -> IResult<&str, Expr> {
-    map(preceded(pair(tag("return"), ws), parse_expr), |expr| {
-        Expr::Return(Box::new(expr))
-    })(input)
-}
-
-fn parse_term(input: &str) -> IResult<&str, Expr> {
-    delimited(
-        ws,
+fn parse_primitive(input: &str) -> ParseResult<Expr> {
+    context(
+        "primitive",
         alt((
-            parse_primitive,
-            parse_variable,
-            delimited(char('('), parse_expr, char(')')),
+            map(parse_float, |f| Expr::Primitive(Primitive::Float(f))),
+            map(parse_int, |i| Expr::Primitive(Primitive::Int(i))),
+            map(parse_string, |s| Expr::Primitive(Primitive::String(s))),
+            map(parse_bool, |b| Expr::Primitive(Primitive::Bool(b))),
         )),
-        ws,
     )(input)
 }
 
-fn parse_expr(input: &str) -> IResult<&str, Expr> {
-    delimited(
-        ws,
+fn parse_int(input: &str) -> ParseResult<i64> {
+    context(
+        "integer",
+        map(recognize(pair(opt(char('-')), digit1)), |s: &str| {
+            s.parse().unwrap()
+        }),
+    )(input)
+}
+
+fn parse_float(input: &str) -> ParseResult<f64> {
+    context(
+        "float",
+        map(
+            recognize(tuple((
+                opt(char('-')),
+                digit1,
+                char('.'),
+                digit1,
+                opt(tuple((one_of("eE"), opt(one_of("+-")), digit1))),
+            ))),
+            |s: &str| s.parse().unwrap(),
+        ),
+    )(input)
+}
+
+fn parse_string(input: &str) -> ParseResult<String> {
+    context(
+        "string",
+        delimited(
+            char('"'),
+            map(
+                many0(alt((
+                    map(take_while1(|c| c != '"' && c != '\\'), String::from),
+                    map(tag("\\\""), |_| String::from("\"")),
+                    map(tag("\\\\"), |_| String::from("\\")),
+                    map(tag("\\n"), |_| String::from("\n")),
+                    map(tag("\\r"), |_| String::from("\r")),
+                    map(tag("\\t"), |_| String::from("\t")),
+                ))),
+                |chunks| chunks.concat(),
+            ),
+            char('"'),
+        ),
+    )(input)
+}
+
+fn parse_bool(input: &str) -> ParseResult<bool> {
+    context(
+        "boolean",
+        alt((value(true, tag("true")), value(false, tag("false")))),
+    )(input)
+}
+
+fn parse_variable(input: &str) -> ParseResult<Expr> {
+    context(
+        "variable",
+        map(
+            recognize(pair(
+                alt((alpha1, tag("_"))),
+                many0(alt((alphanumeric1, tag("_")))),
+            )),
+            |s: &str| Expr::Variable(s.to_string()),
+        ),
+    )(input)
+}
+
+fn parse_assignment(input: &str) -> ParseResult<Expr> {
+    context(
+        "assignment",
+        map(
+            tuple((parse_variable, delimited(ws, char('='), ws), parse_expr)),
+            |(var, _, expr)| {
+                if let Expr::Variable(name) = var {
+                    Expr::Assignment(name, Box::new(expr))
+                } else {
+                    panic!("Expected variable name in assignment")
+                }
+            },
+        ),
+    )(input)
+}
+
+fn parse_function_def(input: &str) -> ParseResult<Expr> {
+    context(
+        "function definition",
+        map(
+            tuple((
+                preceded(pair(tag("def"), ws), parse_variable),
+                delimited(
+                    char('('),
+                    separated_list0(delimited(ws, char(','), ws), parse_variable),
+                    char(')'),
+                ),
+                delimited(ws, char('{'), ws),
+                parse_block,
+                delimited(ws, char('}'), ws),
+            )),
+            |(name, params, _, body, _)| {
+                if let Expr::Variable(name) = name {
+                    Expr::FunctionDef(
+                        name,
+                        params
+                            .into_iter()
+                            .map(|e| {
+                                if let Expr::Variable(name) = e {
+                                    name
+                                } else {
+                                    panic!("Expected variable in function parameters")
+                                }
+                            })
+                            .collect(),
+                        Box::new(body),
+                    )
+                } else {
+                    panic!("Expected variable name for function")
+                }
+            },
+        ),
+    )(input)
+}
+
+fn parse_block(input: &str) -> ParseResult<Expr> {
+    context(
+        "block",
+        map(
+            many0(terminated(
+                alt((parse_function_def, parse_expr)),
+                delimited(ws, opt(char(';')), ws),
+            )),
+            Expr::Block,
+        ),
+    )(input)
+}
+
+fn parse_function_call(input: &str) -> ParseResult<Expr> {
+    context(
+        "function call",
+        map(
+            pair(
+                parse_term,
+                delimited(
+                    char('('),
+                    separated_list0(delimited(ws, char(','), ws), parse_expr),
+                    char(')'),
+                ),
+            ),
+            |(func, args)| Expr::FunctionCall(Box::new(func), args),
+        ),
+    )(input)
+}
+
+fn parse_return(input: &str) -> ParseResult<Expr> {
+    context(
+        "return",
+        map(preceded(pair(tag("return"), ws), parse_expr), |expr| {
+            Expr::Return(Box::new(expr))
+        }),
+    )(input)
+}
+
+fn parse_term(input: &str) -> ParseResult<Expr> {
+    context(
+        "term",
+        delimited(
+            ws,
+            alt((
+                parse_primitive,
+                parse_variable,
+                delimited(char('('), parse_expr, char(')')),
+            )),
+            ws,
+        ),
+    )(input)
+}
+
+fn parse_expr(input: &str) -> ParseResult<Expr> {
+    context(
+        "expression",
+        delimited(
+            ws,
+            alt((
+                parse_assignment,
+                parse_function_call,
+                parse_return,
+                parse_term,
+            )),
+            ws,
+        ),
+    )(input)
+}
+
+fn parse_top_level_expr(input: &str) -> ParseResult<Expr> {
+    context(
+        "top level expression",
         alt((
             parse_function_def,
-            parse_function_call,
-            parse_return,
-            parse_term,
+            terminated(parse_expr, delimited(ws, opt(char(';')), ws)),
         )),
-        ws,
     )(input)
 }
 
-pub fn parse_program(input: &str) -> IResult<&str, Vec<Expr>> {
-    many1(parse_expr)(input)
+pub fn parse_program(input: &str) -> ParseResult<Vec<Expr>> {
+    context(
+        "program",
+        all_consuming(delimited(ws, many1(parse_top_level_expr), ws)),
+    )(input)
 }

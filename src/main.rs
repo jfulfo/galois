@@ -35,7 +35,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
 
             match interpret(exprs, &mut debug_printer) {
-                Ok(result) => println!("Final result: {:?}", result),
+                Ok(result) => println!("{}", result),
                 Err(e) => eprintln!("Runtime error: {}", e),
             }
         }

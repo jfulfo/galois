@@ -79,6 +79,18 @@ fn eval_expr(
             apply_function(func_value, arg_values?, env, debug, Rc::clone(&stack_depth))
         }
         Expr::Return(e) => eval_expr(e, env, debug, Rc::clone(&stack_depth)),
+        Expr::Block(exprs) => {
+            let mut result = Value::Primitive(Primitive::Bool(false));
+            for expr in exprs {
+                result = eval_expr(expr, env, debug, Rc::clone(&stack_depth))?;
+            }
+            Ok(result)
+        }
+        Expr::Assignment(name, expr) => {
+            let value = eval_expr(expr, env, debug, Rc::clone(&stack_depth))?;
+            env.insert(name.clone(), value.clone());
+            Ok(value)
+        }
         Expr::NotationDecl(_, _, _) => Ok(Value::Primitive(Primitive::Bool(true))),
         Expr::FFIDecl(_, _) => Ok(Value::Primitive(Primitive::Bool(true))),
         Expr::FFICall(_, _, _) => Ok(Value::Primitive(Primitive::Bool(true))),
@@ -128,6 +140,3 @@ fn apply_function(
         )),
     }
 }
-
-
-

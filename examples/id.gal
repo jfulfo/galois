@@ -1,4 +1,9 @@
-def id(x):
-  return x
+def id(x) {
+  x;
+}
 
-id(true)
+def app(f,x) {
+  f(x);
+}
+
+app(id, "hello world");
