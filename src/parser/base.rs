@@ -6,7 +6,7 @@ use nom::{
     character::complete::{alpha1, alphanumeric1, char, digit1, multispace1},
     combinator::{map, opt, recognize},
     multi::{many0, many1, separated_list0},
-    sequence::{delimited, pair, preceded, terminated, tuple},
+    sequence::{delimited, pair, preceded, tuple},
     IResult,
 };
 
@@ -90,10 +90,10 @@ fn parse_function_def(input: &str) -> IResult<&str, Expr> {
             preceded(pair(tag("def"), ws), parse_variable),
             delimited(
                 char('('),
-                separated_list0(char(','), delimited(ws, parse_variable, ws)),
+                separated_list0(delimited(ws, char(','), ws), parse_variable),
                 char(')'),
             ),
-            preceded(pair(ws, char(':')), parse_expr),
+            preceded(delimited(ws, char(':'), ws), parse_expr),
         )),
         |(name, params, body)| {
             if let Expr::Variable(name) = name {
@@ -121,10 +121,10 @@ fn parse_function_def(input: &str) -> IResult<&str, Expr> {
 fn parse_function_call(input: &str) -> IResult<&str, Expr> {
     map(
         pair(
-            parse_expr,
+            parse_term,
             delimited(
                 char('('),
-                separated_list0(char(','), delimited(ws, parse_expr, ws)),
+                separated_list0(delimited(ws, char(','), ws), parse_expr),
                 char(')'),
             ),
         ),
@@ -138,20 +138,31 @@ fn parse_return(input: &str) -> IResult<&str, Expr> {
     })(input)
 }
 
-fn parse_expr(input: &str) -> IResult<&str, Expr> {
+fn parse_term(input: &str) -> IResult<&str, Expr> {
     delimited(
         ws,
         alt((
             parse_primitive,
+            parse_variable,
+            delimited(char('('), parse_expr, char(')')),
+        )),
+        ws,
+    )(input)
+}
+
+fn parse_expr(input: &str) -> IResult<&str, Expr> {
+    delimited(
+        ws,
+        alt((
             parse_function_def,
             parse_function_call,
             parse_return,
-            parse_variable,
+            parse_term,
         )),
         ws,
     )(input)
 }
 
 pub fn parse_program(input: &str) -> IResult<&str, Vec<Expr>> {
-    many1(terminated(parse_expr, ws))(input)
+    many1(parse_expr)(input)
 }

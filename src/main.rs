@@ -1,18 +1,18 @@
 // main.rs
 
-mod parser;
-mod syntax;
 mod debug;
 mod interpreter;
+mod parser;
+mod syntax;
 
-use std::fs;
-use std::env;
-use syntax::Environment;
-use parser::parse_program;
 use debug::DebugPrinter;
 use interpreter::interpret;
+use parser::parse_program;
+use std::env;
+use std::fs;
+use syntax::Environment;
 
-fn main() {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
         eprintln!("Usage: {} <filename.gal> [--debug]", args[0]);
@@ -21,12 +21,8 @@ fn main() {
 
     let filename = &args[1];
     let debug_mode = args.contains(&"--debug".to_string());
-    
-    let content = fs::read_to_string(filename)
-        .unwrap_or_else(|e| {
-            eprintln!("Error reading file '{}': {}", filename, e);
-            std::process::exit(1);
-        });
+
+    let content = fs::read_to_string(filename)?;
 
     let mut debug_printer = DebugPrinter::new(debug_mode);
 
@@ -45,4 +41,6 @@ fn main() {
         }
         Err(e) => eprintln!("Parse error: {}", e),
     }
+
+    Ok(())
 }

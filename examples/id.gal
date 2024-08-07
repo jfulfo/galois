@@ -1,0 +1,4 @@
+def id(x):
+  return x
+
+id(true)
