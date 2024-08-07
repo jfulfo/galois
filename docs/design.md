@@ -1,4 +1,4 @@
-# Galois Design
+# galois design
 
 this file will initially be an amalgam of thoughts but eventually will be more organized.
 
@@ -21,18 +21,18 @@ we can have "holes" in our program where a foreign function call will return som
 our language. this is where our universal interface idea come in. we want our language to be
 [opportunistically parallel](https://arxiv.org/abs/2405.11361) (abstract from that paper):
 
-```
-Large language models (LLMs) have shown impressive results at a wide-range of tasks.
-However, they have limitations, such as hallucinating facts and struggling with arithmetic.
-Recent work has addressed these issues with sophisticated decoding techniques.
-However, performant decoding, particularly for sophisticated techniques, relies crucially on parallelization and batching, which are difficult for developers.
-We make two observations:
-  1) existing approaches are high-level domain-specific languages for gluing expensive black-box calls, but are not general or compositional;
-  2) LLM programs are essentially pure (all effects commute).
-Guided by these observations, we develop a novel, general-purpose lambda calculus for automatically parallelizing a wide-range of LLM interactions, without user intervention.
-The key difference versus standard lambda calculus is a novel "opportunistic" evaluation strategy, which steps independent parts of a program in parallel, dispatching black-box external calls as eagerly as possible, even while data-independent parts of the program are waiting for their own external calls to return.
-To maintain the simplicity of the language and to ensure uniformity of opportunistic evaluation, control-flow and looping constructs are implemented in-language, via Church encodings.
-```
+> Large language models (LLMs) have shown impressive results at a wide-range of tasks.
+> However, they have limitations, such as hallucinating facts and struggling with arithmetic.
+> Recent work has addressed these issues with sophisticated decoding techniques.
+> However, performant decoding, particularly for sophisticated techniques, relies crucially on parallelization and batching, which are difficult for developers.
+> We make two observations:
+>
+> - Existing approaches are high-level domain-specific languages for gluing expensive black-box calls, but are not general or compositional;
+> - LLM programs are essentially pure (all effects commute).
+>
+> Guided by these observations, we develop a novel, general-purpose lambda calculus for automatically parallelizing a wide-range of LLM interactions, without user intervention.
+> The key difference versus standard lambda calculus is a novel "opportunistic" evaluation strategy, which steps independent parts of a program in parallel, dispatching black-box external calls as eagerly as possible, even while data-independent parts of the program are waiting for their own external calls to return.
+> To maintain the simplicity of the language and to ensure uniformity of opportunistic evaluation, control-flow and looping constructs are implemented in-language, via Church encodings.
 
 we conjecture that using lambda calculus and church encodings is unnecessary/PL gobbledygook.
 we will first target the LLM scripting scene. necessarily this requires us to have python interoperability, or at least we

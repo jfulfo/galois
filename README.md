@@ -8,5 +8,5 @@ Only source for now.
 
 ## Acknowledgements
 
-- Penn faculty (see design.md).
-- Tinygrad for a lot of inspiration
+- Penn faculty
+- Tinygrad/Geohot
