@@ -1,70 +1,101 @@
 // debug.rs
 
-use crate::syntax::{Expr, Environment};
+use crate::syntax::{Environment, Expr, Value};
 use colored::*;
+use std::cell::RefCell;
 use std::fmt;
+
+thread_local! {
+    static CALL_STACK: RefCell<Vec<CallFrame>> = RefCell::new(Vec::new());
+    static DEPTH: RefCell<usize> = RefCell::new(0);
+}
+
+const MAX_DEPTH: usize = 1000; // Adjust this value as needed
+
+#[derive(Clone, Debug)]
+pub struct CallFrame {
+    function_name: String,
+    args: Vec<String>,
+}
+
+impl fmt::Display for CallFrame {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}({})", self.function_name, self.args.join(", "))
+    }
+}
 
 pub struct DebugPrinter {
     debug_mode: bool,
-    indent_level: usize,
 }
 
 impl DebugPrinter {
     pub fn new(debug_mode: bool) -> Self {
-        DebugPrinter {
-            debug_mode,
-            indent_level: 0,
-        }
+        DebugPrinter { debug_mode }
     }
 
-    pub fn log_program(&self, content: &str) {
-        if !self.debug_mode { return; }
-        println!("{}", "Program:".blue().bold());
-        println!("{}", content);
+    pub fn log_entry(&self, name: &str, args: &[Value]) {
+        if !self.debug_mode {
+            return;
+        }
+        DEPTH.with(|depth| {
+            let mut depth = depth.borrow_mut();
+            *depth += 1;
+            if *depth > MAX_DEPTH {
+                panic!("Maximum recursion depth exceeded");
+            }
+        });
+        let frame = CallFrame {
+            function_name: name.to_string(),
+            args: args.iter().map(|arg| format!("{:?}", arg)).collect(),
+        };
+        CALL_STACK.with(|stack| {
+            stack.borrow_mut().push(frame.clone());
+        });
+        println!("{} Entering: {}", "→".green(), frame);
+        self.print_call_stack();
+    }
+
+    pub fn log_exit(&self, name: &str, result: &Result<Value, String>) {
+        if !self.debug_mode {
+            return;
+        }
+        DEPTH.with(|depth| {
+            let mut depth = depth.borrow_mut();
+            *depth -= 1;
+        });
+        CALL_STACK.with(|stack| {
+            stack.borrow_mut().pop();
+        });
+        match result {
+            Ok(value) => println!("{} Exiting: {} = {:?}", "←".blue(), name, value),
+            Err(e) => println!("{} Exiting: {} with error: {}", "←".red(), name, e),
+        }
+        self.print_call_stack();
+    }
+
+    pub fn print_call_stack(&self) {
+        if !self.debug_mode {
+            return;
+        }
+        println!("{}", "Call Stack:".yellow());
+        CALL_STACK.with(|stack| {
+            for (i, frame) in stack.borrow().iter().rev().enumerate() {
+                println!("  {}: {}", i, frame);
+            }
+        });
         println!();
     }
 
-    pub fn log_parsed(&self, exprs: &[Expr]) {
-        if !self.debug_mode { return; }
-        println!("{}", "Parsed Expressions:".blue().bold());
-        for (i, expr) in exprs.iter().enumerate() {
-            println!("Expression {}:", i + 1);
-            println!("{:?}", expr);
-            println!();
+    pub fn log_expr(&self, expr: &Expr, env: &Environment) {
+        if !self.debug_mode {
+            return;
         }
-    }
-
-    pub fn log_step(&mut self, expr: &Expr, env: &Environment) {
-        if !self.debug_mode { return; }
-        println!("{}", "┌─ Evaluation Step ".blue().bold());
-        self.print_indented("Expression:", expr);
-        self.print_indented("Environment:", env);
-        println!("{}", "└─────────".blue().bold());
-    }
-
-    pub fn log_result<T: fmt::Debug>(&self, result: &Result<T, impl fmt::Debug>) {
-        if !self.debug_mode { return; }
-        println!("{}", "┌─ Step Result ".green().bold());
-        match result {
-            Ok(value) => self.print_indented("Value:", value),
-            Err(e) => self.print_indented("Error:", e),
+        println!("{}", "Expression:".cyan());
+        println!("  {:?}", expr);
+        println!("{}", "Environment:".cyan());
+        for (key, value) in env {
+            println!("  {}: {:?}", key, value);
         }
-        println!("{}", "└─────────".green().bold());
-    }
-
-    pub fn increase_indent(&mut self) {
-        self.indent_level += 1;
-    }
-
-    pub fn decrease_indent(&mut self) {
-        if self.indent_level > 0 {
-            self.indent_level -= 1;
-        }
-    }
-
-    fn print_indented<T: fmt::Debug>(&self, label: &str, value: &T) {
-        let indent = "│ ".repeat(self.indent_level);
-        println!("{}{}:", indent, label.yellow());
-        println!("{}{:?}", indent, value);
+        println!();
     }
 }

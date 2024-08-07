@@ -1,3 +1,0 @@
-/*
-* Engine for universal intefacing
-*/

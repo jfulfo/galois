@@ -1,6 +1,4 @@
-/*
-* Syntax for the language
-*/
+// syntax.rs
 
 use std::collections::HashMap;
 
@@ -10,8 +8,6 @@ pub enum Primitive {
     Float(f64),
     String(String),
     Bool(bool),
-    List(Vec<Expr>),
-    Dict(Vec<(Expr, Expr)>),
 }
 
 #[derive(Debug, Clone)]
@@ -20,8 +16,10 @@ pub enum Expr {
     Variable(String),
     FunctionDef(String, Vec<String>, Box<Expr>),
     FunctionCall(Box<Expr>, Vec<Expr>),
-    // Notation(String, i32, Box<Expr>, Box<Expr>),
-    // NotationUse(String, Vec<Expr>),
+    Return(Box<Expr>),
+    NotationDecl(String, Vec<String>, Box<Expr>),
+    FFIDecl(String, Vec<String>),
+    FFICall(String, String, Vec<Expr>),
 }
 
 #[derive(Debug, Clone)]

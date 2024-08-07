@@ -7,8 +7,8 @@ mod interpreter;
 
 use std::fs;
 use std::env;
-use parser::parse_program;
 use syntax::Environment;
+use parser::parse_program;
 use debug::DebugPrinter;
 use interpreter::interpret;
 
@@ -30,33 +30,17 @@ fn main() {
 
     let mut debug_printer = DebugPrinter::new(debug_mode);
 
-    if debug_mode {
-        debug_printer.log_program(&content);
-    }
-
     match parse_program(&content) {
-        Ok((_, exprs)) => {  // Note: parse_program should now return Vec<Expr>
+        Ok(exprs) => {
             if debug_mode {
-                debug_printer.log_parsed(&exprs);
-            }
-
-            let mut env = Environment::new();
-            let mut final_result = None;
-
-            for expr in exprs {
-                match interpret(&expr, &mut env, &mut debug_printer) {
-                    Ok(result) => {
-                        final_result = Some(result);
-                    },
-                    Err(e) => {
-                        eprintln!("Runtime error: {}", e);
-                        std::process::exit(1);
-                    }
+                for expr in &exprs {
+                    debug_printer.log_expr(expr, &Environment::new());
                 }
             }
 
-            if let Some(result) = final_result {
-                println!("{:?}", result);
+            match interpret(exprs, &mut debug_printer) {
+                Ok(result) => println!("Final result: {:?}", result),
+                Err(e) => eprintln!("Runtime error: {}", e),
             }
         }
         Err(e) => eprintln!("Parse error: {}", e),

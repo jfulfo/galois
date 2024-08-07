@@ -65,3 +65,40 @@ a few notes on what we really want in the language:
   eventually making a compiler for cuda is very much desired, we want our language to be
   as parallel as possible
 - we use `_` for spaces in name generally
+
+# formalization
+
+the following sections will focus on a more concrete view of the language.
+note that our language is untyped and imperative-style.
+
+## syntax
+
+an expression in galois can be one of the following:
+
+- variable: variables can be "assigned to" a function or act as a wrapper around a primitive.
+  variables that are just `x = y` can be "cut" as in `let x = y in`. this is non obvious initially,
+  but we will have to have some "inlining" step. variables are identified by a string
+- function definitions: functions are identified by a string, take an arbitrary list of arguments,
+  and also contain the function body
+- function applications: generally inlined in variable assignments or in other applications. straightforward.
+- return statements: `return x`, may be omitted to just `x` if the last expression of a function body.
+- notation declarations: identifies a pattern with a function, we will use this to build the sugar of our language.
+  e.g. `z = x + y` will sugar to `z = add(x,y)`. note that we will also have to use this for `for` and `while` loops,
+  so it will have to be quite powerful technology.
+- foreign function interface declarations: declares the set of linkable foreign functions that can be used in the program.
+  we will use these to control the effects of our otherwise purely functional language. ideally we want this to be a
+  single `includes` call, but we want a better keyword, probably `use` (rust like). we will first target python as a foreign
+  functions. we will probably have to make our own protocol for this if we eventually want to include other languages,
+  even making it eventually language agnostic.
+- foreign function calls: we can either make these explicit with a keyword like `call` or `dispatch`, or we can use the existing
+  syntax (latter probably preferred). for debugging purposes, we will only have the declarations (with no linking) and represent these
+  just with a `CALL` print. we will work on the hard part later.
+
+## semantics
+
+it is **very** important to note that _variables and functions do not have to be defined before they are used_.
+this follows immediately from our goal of automatic parallelization:
+if we want arbitrary parts of the program to be parallelizable, then we always want to step as much as we can
+(partial applications if needed).
+if we want to step as much as we can, then we need to step blocks of code that may contain "holes" in the program
+where we don't have a defined assignments for a variable.
