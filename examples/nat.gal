@@ -1,84 +1,93 @@
 // church nat
 def ctrue(x, y) {
-    x;
+    x
 }
 
 def cfalse(x, y) {
-    y;
+    y
 }
 
 def zero(f, x) {
-    x;
+    x
 }
 
 def is_zero(n) {
     def always_false(x) {
-        cfalse;
+        cfalse
     }
-    n(always_false, ctrue);
+    n(always_false, ctrue)
 }
 
 def succ(n) {
     def succ_inner(f, x) {
-        f(n(f, x));
+        f(n(f, x))
     }
-    succ_inner;
+    succ_inner
 }
 
 def add(m, n) {
-    def add_inner(f, x) {
-        m(f, n(f, x));
-    }
-    add_inner;
+    n(succ, m)
 }
+
+notation "$x + $y" with x, y precedence 10 associativity left := add(x, y)
 
 def mult(m, n) {
-    def mult_inner(f, x) {
-        m(n(f), x);
-    }
-    return mult_inner;
+    n(add(m, zero), zero)
 }
 
+notation "$x * $y" with x, y precedence 20 associativity left := mult(x, y)
+
 def one() {
-    return succ(zero);
+    return succ(zero)
 }
 
 def two() {
-    return succ(one());
+    return succ(one())
 }
 
 def three() {
-    return succ(two());
+    return succ(two())
 }
 
 def id(x) {
-    x;
+    x
 }
 
 def pair(a, b) {
     def pair_inner(f) {
-        f(a, b);
+        f(a, b)
     }
-    pair_inner;
+    pair_inner
 }
 
 def first(p) {
-    p(ctrue);
+    p(ctrue)
 }
 
 def second(p) {
-    p(cfalse);
+    p(cfalse)
 }
 
 def pred(n) {
     def pred_inner(f, x) {
         def g(p) {
-            pair(f(first(p)), first(p));
+            pair(f(first(p)), first(p))
         }
-        second(n(g, pair(x, x)));
+        second(n(g, pair(x, x)))
     }
-    pred_inner;
+    pred_inner
 }
 
-nat = pred(add(one(), zero));
-is_zero(nat);
+def minus(m, n) { // m - n
+    return n(pred, m)
+}
+
+notation "$x - $y" with x, y precedence 10 associativity left := minus(x, y)
+
+
+x = one()
+y = two()
+z = x + y
+w = three()
+res = z - w
+is_zero(res)

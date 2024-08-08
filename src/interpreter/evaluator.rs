@@ -91,7 +91,9 @@ fn eval_expr(
             env.insert(name.clone(), value.clone());
             Ok(value)
         }
-        Expr::NotationDecl(_, _, _) => Ok(Value::Primitive(Primitive::Bool(true))),
+        Expr::InfixOp(_, _, _) => Ok(Value::Primitive(Primitive::Bool(true))),
+        Expr::NotationDecl(_, _) => Ok(Value::Primitive(Primitive::Bool(true))),
+
         Expr::FFIDecl(_, _) => Ok(Value::Primitive(Primitive::Bool(true))),
         Expr::FFICall(_, _, _) => Ok(Value::Primitive(Primitive::Bool(true))),
     };

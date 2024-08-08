@@ -151,13 +151,6 @@ impl DebugPrinter {
                 println!("{}Assignment: {}", indent, name);
                 self.log_expr(e, env, depth + 1);
             }
-            Expr::NotationDecl(pattern, vars, expansion) => {
-                println!("{}Notation Declaration:", indent);
-                println!("{}Pattern: {}", indent, pattern);
-                println!("{}Variables: {}", indent, vars.join(", "));
-                println!("{}Expansion:", indent);
-                self.log_expr(expansion, env, depth + 1);
-            }
             Expr::FFIDecl(name, params) => {
                 println!(
                     "{}FFI Declaration: {} ({})",
@@ -173,6 +166,14 @@ impl DebugPrinter {
                     println!("{}Arg {}:", indent, i);
                     self.log_expr(arg, env, depth + 1);
                 }
+            }
+            Expr::NotationDecl(pattern, expansion) => {
+                println!("{}Notation Declaration:", indent);
+                println!("{}Pattern: {}", indent, pattern);
+                println!("{}Expansion: {}", indent, expansion);
+            }
+            Expr::InfixOp(left, op, right) => {
+                println!("{}Infix Operation: {} {} {}", indent, left, op, right);
             }
         }
     }

@@ -13,6 +13,6 @@ pub use self::notation::apply_notations;
 pub fn parse_program(input: &str) -> Result<Vec<Expr>, String> {
     match parse_base_program(input).finish() {
         Ok((_, exprs)) => apply_notations(exprs),
-        Err(e) => Err(format!("Parse error:\n{}", convert_error(input, e))),
+        Err(e) => Err(convert_error(input, e)),
     }
 }

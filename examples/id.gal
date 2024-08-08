@@ -1,9 +1,9 @@
 def id(x) {
-  x;
+  x
 }
 
 def app(f,x) {
-  f(x);
+  f(x)
 }
 
-app(id, "hello world");
+app(id, "hello world")

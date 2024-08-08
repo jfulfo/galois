@@ -1,108 +1,107 @@
 // parser/notation.rs
 
-use crate::syntax::Expr;
+use crate::syntax::{Expr, NotationPattern};
 use std::collections::HashMap;
 
+#[derive(Clone, Debug)]
+struct Notation {
+    pattern: NotationPattern,
+    expansion: Box<Expr>,
+}
+
 pub fn apply_notations(ast: Vec<Expr>) -> Result<Vec<Expr>, String> {
-    let (notations, rest) = extract_notations(ast);
-    let expanded = expand_notations(rest, &notations);
-    Ok(expanded)
-}
+    let (notations, expressions): (Vec<_>, Vec<_>) = ast
+        .into_iter()
+        .partition(|expr| matches!(expr, Expr::NotationDecl(_, _)));
 
-fn extract_notations(ast: Vec<Expr>) -> (HashMap<String, (Vec<String>, Box<Expr>)>, Vec<Expr>) {
-    let mut notations = HashMap::new();
-    let mut rest = Vec::new();
-
-    for expr in ast {
-        match expr {
-            Expr::NotationDecl(pattern, vars, expansion) => {
-                notations.insert(pattern, (vars, expansion));
+    let notations: Vec<Notation> = notations
+        .into_iter()
+        .filter_map(|expr| {
+            if let Expr::NotationDecl(pattern, expansion) = expr {
+                Some(Notation { pattern, expansion })
+            } else {
+                None
             }
-            _ => rest.push(expr),
-        }
-    }
+        })
+        .collect();
 
-    (notations, rest)
-}
-
-fn expand_notations(
-    ast: Vec<Expr>,
-    notations: &HashMap<String, (Vec<String>, Box<Expr>)>,
-) -> Vec<Expr> {
-    ast.into_iter()
-        .map(|expr| expand_expr(expr, notations))
+    expressions
+        .into_iter()
+        .map(|expr| expand_expr(expr, &notations))
         .collect()
 }
 
-fn expand_expr(expr: Expr, notations: &HashMap<String, (Vec<String>, Box<Expr>)>) -> Expr {
-    match expr {
+fn expand_expr(expr: Expr, notations: &[Notation]) -> Result<Expr, String> {
+    let expanded = match expr {
+        Expr::FunctionDef(name, params, body) => {
+            Expr::FunctionDef(name, params, Box::new(expand_expr(*body, notations)?))
+        }
         Expr::FunctionCall(func, args) => {
-            let expanded_func = expand_expr(*func, notations);
+            let expanded_func = Box::new(expand_expr(*func, notations)?);
             let expanded_args = args
                 .into_iter()
                 .map(|arg| expand_expr(arg, notations))
-                .collect::<Vec<_>>();
-
-            // Check if this function call matches any notation
-            for (pattern, (vars, expansion)) in notations {
-                if let Some(matched_args) =
-                    match_notation(&expanded_func, &expanded_args, pattern, vars)
-                {
-                    let mut env = HashMap::new();
-                    for (var, arg) in vars.iter().zip(matched_args) {
-                        env.insert(var.clone(), arg);
-                    }
-                    return substitute_expr(&expansion, &env);
-                }
-            }
-
-            Expr::FunctionCall(Box::new(expanded_func), expanded_args)
+                .collect::<Result<Vec<_>, _>>()?;
+            Expr::FunctionCall(expanded_func, expanded_args)
         }
-        Expr::FunctionDef(name, params, body) => {
-            Expr::FunctionDef(name, params, Box::new(expand_expr(*body, notations)))
+        Expr::Return(e) => Expr::Return(Box::new(expand_expr(*e, notations)?)),
+        Expr::Block(exprs) => {
+            let expanded_exprs = exprs
+                .into_iter()
+                .map(|e| expand_expr(e, notations))
+                .collect::<Result<Vec<_>, _>>()?;
+            Expr::Block(expanded_exprs)
         }
-        Expr::Return(e) => Expr::Return(Box::new(expand_expr(*e, notations))),
+        Expr::Assignment(name, e) => Expr::Assignment(name, Box::new(expand_expr(*e, notations)?)),
+        Expr::InfixOp(left, op, right) => {
+            let expanded_left = Box::new(expand_expr(*left, notations)?);
+            let expanded_right = Box::new(expand_expr(*right, notations)?);
+            Expr::InfixOp(expanded_left, op, expanded_right)
+        }
         _ => expr,
-    }
-}
+    };
 
-fn match_notation(func: &Expr, args: &[Expr], pattern: &str, vars: &[String]) -> Option<Vec<Expr>> {
-    let pattern_parts: Vec<&str> = pattern.split_whitespace().collect();
-    if pattern_parts.len() != args.len() + 1 {
-        return None;
-    }
-
-    if let Expr::Variable(func_name) = func {
-        if func_name != pattern_parts[0] {
-            return None;
-        }
-    } else {
-        return None;
-    }
-
-    let mut matched_args = Vec::new();
-    for (i, arg) in args.iter().enumerate() {
-        if vars.contains(&pattern_parts[i + 1].to_string()) {
-            matched_args.push(arg.clone());
-        } else if pattern_parts[i + 1] != "+"
-            && pattern_parts[i + 1] != "-"
-            && pattern_parts[i + 1] != "*"
-            && pattern_parts[i + 1] != "/"
-        {
-            return None;
+    // Try to match and expand notations
+    for notation in notations {
+        if let Some(bindings) = match_pattern(&expanded, &notation.pattern) {
+            return expand_notation(&notation.expansion, &bindings);
         }
     }
 
-    Some(matched_args)
+    Ok(expanded)
 }
 
-fn substitute_expr(expr: &Expr, env: &HashMap<String, Expr>) -> Expr {
+fn match_pattern(expr: &Expr, pattern: &NotationPattern) -> Option<HashMap<String, Expr>> {
     match expr {
-        Expr::Variable(name) => env.get(name).cloned().unwrap_or_else(|| expr.clone()),
-        Expr::FunctionCall(func, args) => Expr::FunctionCall(
-            Box::new(substitute_expr(func, env)),
-            args.iter().map(|arg| substitute_expr(arg, env)).collect(),
-        ),
-        _ => expr.clone(),
+        Expr::InfixOp(left, op, right) if pattern.pattern == format!("$x {} $y", op) => {
+            let mut bindings = HashMap::new();
+            bindings.insert("x".to_string(), (**left).clone());
+            bindings.insert("y".to_string(), (**right).clone());
+            Some(bindings)
+        }
+        _ => None,
+    }
+}
+
+fn expand_notation(expansion: &Expr, bindings: &HashMap<String, Expr>) -> Result<Expr, String> {
+    match expansion {
+        Expr::Variable(name) => Ok(bindings
+            .get(name)
+            .cloned()
+            .unwrap_or_else(|| expansion.clone())),
+        Expr::FunctionCall(func, args) => {
+            let expanded_func = Box::new(expand_notation(func, bindings)?);
+            let expanded_args = args
+                .iter()
+                .map(|arg| expand_notation(arg, bindings))
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok(Expr::FunctionCall(expanded_func, expanded_args))
+        }
+        Expr::InfixOp(left, op, right) => {
+            let expanded_left = Box::new(expand_notation(left, bindings)?);
+            let expanded_right = Box::new(expand_notation(right, bindings)?);
+            Ok(Expr::InfixOp(expanded_left, op.clone(), expanded_right))
+        }
+        _ => Ok(expansion.clone()),
     }
 }

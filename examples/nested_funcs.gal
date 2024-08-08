@@ -1,24 +1,16 @@
 def compose(f, g) {
     def composed(x) {
-        f(g(x));
+        f(g(x))
     }
-    composed;
+    composed
 }
 
-def id(x) {
-    x;
-}
+def id(x) { x }
 
 def wrap(x) {
-    def inner(y) {
-        y;
-    }
-    inner(x);
+    def inner(y) { y }
+    inner(x)
 }
 
-def main() {
-    func = compose(wrap, id);
-    func("hello world");
-}
-
-main();
+func = compose(wrap, id)
+func("hello world")

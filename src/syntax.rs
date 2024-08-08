@@ -22,6 +22,35 @@ impl fmt::Display for Primitive {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct NotationPattern {
+    pub pattern: String,
+    pub variables: Vec<String>,
+    pub precedence: Option<i32>,
+    pub associativity: Associativity,
+}
+
+impl fmt::Display for NotationPattern {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}{}",
+            self.pattern,
+            match &self.precedence {
+                Some(p) => format!(" [{}]", p),
+                None => "".to_string(),
+            }
+        )
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum Associativity {
+    Left,
+    Right,
+    None,
+}
+
 #[derive(Clone)]
 pub enum Expr {
     Primitive(Primitive),
@@ -31,9 +60,10 @@ pub enum Expr {
     Return(Box<Expr>),
     Block(Vec<Expr>),
     Assignment(String, Box<Expr>),
-    NotationDecl(String, Vec<String>, Box<Expr>),
     FFIDecl(String, Vec<String>),
     FFICall(String, String, Vec<Expr>),
+    InfixOp(Box<Expr>, String, Box<Expr>),
+    NotationDecl(NotationPattern, Box<Expr>),
 }
 
 #[derive(Clone)]
@@ -119,11 +149,15 @@ impl fmt::Debug for Expr {
                 write!(f, "{} = ", name)?;
                 fmt::Debug::fmt(e, f)
             }
-            Expr::NotationDecl(_, _, _) => write!(f, "<notation declaration>"),
             Expr::FFIDecl(name, params) => {
                 write!(f, "FFI declaration: {} ({})", name, params.join(", "))
             }
             Expr::FFICall(module, func, _args) => write!(f, "FFI call: {}::{}(...)", module, func),
+            Expr::NotationDecl(pattern, expansion) => {
+                write!(f, "notation declaration: {} -> ", pattern)?;
+                fmt::Debug::fmt(expansion, f)
+            }
+            Expr::InfixOp(left, op, right) => write!(f, "({:?} {} {:?})", left, op, right),
         }
     }
 }

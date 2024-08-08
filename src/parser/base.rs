@@ -11,9 +11,27 @@ use nom::{
     IResult,
 };
 
-use crate::syntax::{Expr, Primitive};
+use crate::syntax::{Associativity, Expr, NotationPattern, Primitive};
 
 type ParseResult<'a, O> = IResult<&'a str, O, VerboseError<&'a str>>;
+
+fn log_parse_attempt<'a, F, O>(context: &str, mut f: F) -> impl FnMut(&'a str) -> ParseResult<'a, O>
+where
+    F: FnMut(&'a str) -> ParseResult<'a, O>,
+{
+    move |input: &'a str| {
+        println!("Attempting to parse {}: {:?}", context, input);
+        let result = f(input);
+        match &result {
+            Ok((remaining, _)) => println!(
+                "Successfully parsed {}. Remaining: {:?}",
+                context, remaining
+            ),
+            Err(e) => println!("Failed to parse {}: {:?}", context, e),
+        }
+        result
+    }
+}
 
 fn ws(input: &str) -> ParseResult<()> {
     value(
@@ -177,7 +195,7 @@ fn parse_function_call(input: &str) -> ParseResult<Expr> {
         "function call",
         map(
             pair(
-                parse_term,
+                parse_variable,
                 delimited(
                     char('('),
                     separated_list0(delimited(ws, char(','), ws), parse_expr),
@@ -205,10 +223,81 @@ fn parse_term(input: &str) -> ParseResult<Expr> {
             ws,
             alt((
                 parse_primitive,
+                parse_function_call,
                 parse_variable,
                 delimited(char('('), parse_expr, char(')')),
             )),
             ws,
+        ),
+    )(input)
+}
+
+fn parse_infix_op(input: &str) -> ParseResult<&str> {
+    recognize(many1(one_of("!@#$%^&*-+=|<>?/:~")))(input)
+}
+
+fn parse_infix_expr(input: &str) -> ParseResult<Expr> {
+    let (input, first_term) = parse_term(input)?;
+    let (input, rest) = many0(tuple((delimited(ws, parse_infix_op, ws), parse_term)))(input)?;
+
+    Ok((
+        input,
+        rest.into_iter().fold(first_term, |acc, (op, term)| {
+            Expr::InfixOp(Box::new(acc), op.to_string(), Box::new(term))
+        }),
+    ))
+}
+
+fn parse_notation_pattern(input: &str) -> ParseResult<NotationPattern> {
+    context(
+        "notation pattern",
+        map(
+            tuple((
+                delimited(char('"'), take_until("\""), char('"')),
+                opt(preceded(
+                    delimited(ws, tag("with"), ws),
+                    separated_list0(delimited(ws, char(','), ws), parse_variable),
+                )),
+                opt(preceded(delimited(ws, tag("precedence"), ws), parse_int)),
+                opt(preceded(
+                    delimited(ws, tag("associativity"), ws),
+                    alt((
+                        value(Associativity::Left, tag("left")),
+                        value(Associativity::Right, tag("right")),
+                        value(Associativity::None, tag("none")),
+                    )),
+                )),
+            )),
+            |(pattern, variables, precedence, associativity)| NotationPattern {
+                pattern: pattern.to_string(),
+                variables: variables
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|v| {
+                        if let Expr::Variable(name) = v {
+                            name
+                        } else {
+                            panic!("Expected variable in notation pattern")
+                        }
+                    })
+                    .collect(),
+                precedence: precedence.map(|p| p as i32),
+                associativity: associativity.unwrap_or(Associativity::None),
+            },
+        ),
+    )(input)
+}
+
+fn parse_notation_decl(input: &str) -> ParseResult<Expr> {
+    context(
+        "notation declaration",
+        map(
+            tuple((
+                preceded(pair(tag("notation"), ws), parse_notation_pattern),
+                delimited(ws, tag(":="), ws),
+                parse_expr,
+            )),
+            |(pattern, _, expansion)| Expr::NotationDecl(pattern, Box::new(expansion)),
         ),
     )(input)
 }
@@ -218,12 +307,7 @@ fn parse_expr(input: &str) -> ParseResult<Expr> {
         "expression",
         delimited(
             ws,
-            alt((
-                parse_assignment,
-                parse_function_call,
-                parse_return,
-                parse_term,
-            )),
+            alt((parse_assignment, parse_return, parse_infix_expr)),
             ws,
         ),
     )(input)
@@ -234,6 +318,7 @@ fn parse_top_level_expr(input: &str) -> ParseResult<Expr> {
         "top level expression",
         alt((
             parse_function_def,
+            parse_notation_decl,
             terminated(parse_expr, delimited(ws, opt(char(';')), ws)),
         )),
     )(input)
