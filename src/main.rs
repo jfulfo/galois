@@ -32,6 +32,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 for expr in &exprs {
                     debug_printer.log_expr(expr, &Environment::new(), 0);
                 }
+            } else {
+                println!("Parsed successfully");
             }
             match interpret(exprs, &mut debug_printer) {
                 Ok(result) => {

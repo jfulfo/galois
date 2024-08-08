@@ -8,7 +8,7 @@ def cfalse(x, y) {
 }
 
 def zero(f, x) {
-    cfalse(f, x);
+    x;
 }
 
 def is_zero(n) {
@@ -19,41 +19,66 @@ def is_zero(n) {
 }
 
 def succ(n) {
-    def inner(f, x) {
+    def succ_inner(f, x) {
         f(n(f, x));
     }
-    inner;
+    succ_inner;
 }
 
 def add(m, n) {
-    def inner(f, x) {
+    def add_inner(f, x) {
         m(f, n(f, x));
     }
-    inner;
+    add_inner;
 }
 
 def mult(m, n) {
-    def inner(f) {
-        m(n(f));
+    def mult_inner(f, x) {
+        m(n(f), x);
     }
-    inner;
+    return mult_inner;
 }
 
 def one() {
-    succ(zero);
+    return succ(zero);
 }
 
 def two() {
-    succ(one());
+    return succ(one());
 }
 
 def three() {
-    succ(two());
+    return succ(two());
 }
 
 def id(x) {
     x;
 }
 
-is_zero(zero);
+def pair(a, b) {
+    def pair_inner(f) {
+        f(a, b);
+    }
+    pair_inner;
+}
 
+def first(p) {
+    p(ctrue);
+}
+
+def second(p) {
+    p(cfalse);
+}
+
+def pred(n) {
+    def pred_inner(f, x) {
+        def g(p) {
+            pair(f(first(p)), first(p));
+        }
+        second(n(g, pair(x, x)));
+    }
+    pred_inner;
+}
+
+nat = pred(add(one(), zero));
+is_zero(nat);
