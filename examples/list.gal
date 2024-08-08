@@ -1,0 +1,33 @@
+def list(acc, f) {
+  acc = f(acc, 0)
+  acc = f(acc, 1)
+  acc = f(acc, 2)
+  acc
+}
+
+def list_id(l) {
+  def ret(acc, f) {
+    def foreach(accprime, x) {
+      accprime = f(accprime, x)
+      accprime
+    }
+    acc = l(acc, foreach)
+    acc
+  }
+  ret
+}
+
+def push_back(tail, head) {
+  def ret(acc, f) {
+    acc = tail(acc, f)
+    acc = f(acc, head)
+    acc
+  }
+  ret
+}
+
+push_back(list, 3)
+
+/* this just prints `Result: function ret (acc, f) { { acc = tail(acc, f); acc = f(acc, head); acc } }`
+   we something to "consume" the value (i.e. an effect). currently we do not have a way of doing this.
+   we need a `general` way to communicate with the outside world. */
