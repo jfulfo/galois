@@ -56,7 +56,7 @@ fn eval_expr(
         return Err(InterpreterError::StackOverflow);
     }
 
-    debug.log_expr(expr, env);
+    debug.log_expr(expr, env, 0);
 
     let result = match expr {
         Expr::Primitive(p) => Ok(Value::Primitive(p.clone())),

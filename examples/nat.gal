@@ -1,0 +1,59 @@
+// church nat
+def ctrue(x, y) {
+    x;
+}
+
+def cfalse(x, y) {
+    y;
+}
+
+def zero(f, x) {
+    cfalse(f, x);
+}
+
+def is_zero(n) {
+    def always_false(x) {
+        cfalse;
+    }
+    n(always_false, ctrue);
+}
+
+def succ(n) {
+    def inner(f, x) {
+        f(n(f, x));
+    }
+    inner;
+}
+
+def add(m, n) {
+    def inner(f, x) {
+        m(f, n(f, x));
+    }
+    inner;
+}
+
+def mult(m, n) {
+    def inner(f) {
+        m(n(f));
+    }
+    inner;
+}
+
+def one() {
+    succ(zero);
+}
+
+def two() {
+    succ(one());
+}
+
+def three() {
+    succ(two());
+}
+
+def id(x) {
+    x;
+}
+
+is_zero(zero);
+

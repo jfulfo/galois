@@ -86,16 +86,94 @@ impl DebugPrinter {
         println!();
     }
 
-    pub fn log_expr(&self, expr: &Expr, env: &Environment) {
+    pub fn log_value(&self, value: &Value, depth: usize) {
         if !self.debug_mode {
             return;
         }
-        println!("{}", "Expression:".cyan());
-        println!("  {:?}", expr);
-        println!("{}", "Environment:".cyan());
-        for (key, value) in env {
-            println!("  {}: {:?}", key, value);
+        let indent = "  ".repeat(depth);
+        match value {
+            Value::Primitive(p) => println!("{}Value: {:?}", indent, p),
+            Value::Function(name, params, body, env) => {
+                println!("{}Function: {} ({})", indent, name, params.join(", "));
+                println!("{}Body:", indent);
+                self.log_expr(body, env, depth + 1);
+            }
+            Value::PartialApplication(func, args) => {
+                println!("{}Partial Application:", indent);
+                self.log_value(func, depth + 1);
+                println!("{}Applied Arguments:", indent);
+                for (i, arg) in args.iter().enumerate() {
+                    println!("{}Arg {}: {:?}", indent, i, arg);
+                }
+            }
         }
-        println!();
+    }
+
+    pub fn log_expr(&self, expr: &Expr, env: &Environment, depth: usize) {
+        if !self.debug_mode {
+            return;
+        }
+        let indent = "  ".repeat(depth);
+        match expr {
+            Expr::Primitive(p) => println!("{}Primitive: {:?}", indent, p),
+            Expr::Variable(name) => println!("{}Variable: {}", indent, name),
+            Expr::FunctionDef(name, params, body) => {
+                println!(
+                    "{}Function Definition: {} ({})",
+                    indent,
+                    name,
+                    params.join(", ")
+                );
+                println!("{}Body:", indent);
+                self.log_expr(body, env, depth + 1);
+            }
+            Expr::FunctionCall(func, args) => {
+                println!("{}Function Call:", indent);
+                self.log_expr(func, env, depth + 1);
+                println!("{}Arguments:", indent);
+                for (i, arg) in args.iter().enumerate() {
+                    println!("{}Arg {}:", indent, i);
+                    self.log_expr(arg, env, depth + 2);
+                }
+            }
+            Expr::Return(e) => {
+                println!("{}Return:", indent);
+                self.log_expr(e, env, depth + 1);
+            }
+            Expr::Block(exprs) => {
+                println!("{}Block:", indent);
+                for (i, e) in exprs.iter().enumerate() {
+                    println!("{}Expression {}:", indent, i);
+                    self.log_expr(e, env, depth + 1);
+                }
+            }
+            Expr::Assignment(name, e) => {
+                println!("{}Assignment: {}", indent, name);
+                self.log_expr(e, env, depth + 1);
+            }
+            Expr::NotationDecl(pattern, vars, expansion) => {
+                println!("{}Notation Declaration:", indent);
+                println!("{}Pattern: {}", indent, pattern);
+                println!("{}Variables: {}", indent, vars.join(", "));
+                println!("{}Expansion:", indent);
+                self.log_expr(expansion, env, depth + 1);
+            }
+            Expr::FFIDecl(name, params) => {
+                println!(
+                    "{}FFI Declaration: {} ({})",
+                    indent,
+                    name,
+                    params.join(", ")
+                );
+            }
+            Expr::FFICall(module, func, args) => {
+                println!("{}FFI Call: {}::{}", indent, module, func);
+                println!("{}Arguments:", indent);
+                for (i, arg) in args.iter().enumerate() {
+                    println!("{}Arg {}:", indent, i);
+                    self.log_expr(arg, env, depth + 1);
+                }
+            }
+        }
     }
 }

@@ -30,12 +30,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Ok(exprs) => {
             if debug_mode {
                 for expr in &exprs {
-                    debug_printer.log_expr(expr, &Environment::new());
+                    debug_printer.log_expr(expr, &Environment::new(), 0);
                 }
             }
-
             match interpret(exprs, &mut debug_printer) {
-                Ok(result) => println!("{}", result),
+                Ok(result) => {
+                    if debug_mode {
+                        println!("Result:");
+                        debug_printer.log_value(&result, 0);
+                    } else {
+                        println!("Result: {}", result);
+                    }
+                }
                 Err(e) => eprintln!("Runtime error: {}", e),
             }
         }
