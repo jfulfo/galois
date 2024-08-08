@@ -29,13 +29,11 @@ def add(m, n) {
     n(succ, m)
 }
 
-notation "$x + $y" with x, y precedence 10 associativity left := add(x, y)
 
 def mult(m, n) {
     n(add(m, zero), zero)
 }
 
-notation "$x * $y" with x, y precedence 20 associativity left := mult(x, y)
 
 def one() {
     return succ(zero)
@@ -82,12 +80,9 @@ def minus(m, n) { // m - n
     return n(pred, m)
 }
 
+notation "$x + $y" with x, y precedence 10 associativity left := add(x, y)
+notation "$x * $y" with x, y precedence 20 associativity left := mult(x, y)
 notation "$x - $y" with x, y precedence 10 associativity left := minus(x, y)
 
-
-x = one()
-y = two()
-z = x + y
-w = three()
-res = z - w
-is_zero(res)
+z = one() + two()
+is_zero(z - three())
