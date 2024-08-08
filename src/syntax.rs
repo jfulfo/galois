@@ -1,7 +1,11 @@
 // syntax.rs
 
+// syntax.rs
+
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt;
+use std::rc::Rc;
 
 #[derive(Debug, Clone)]
 pub enum Primitive {
@@ -55,22 +59,22 @@ pub enum Associativity {
 pub enum Expr {
     Primitive(Primitive),
     Variable(String),
-    FunctionDef(String, Vec<String>, Box<Expr>),
-    FunctionCall(Box<Expr>, Vec<Expr>),
-    Return(Box<Expr>),
-    Block(Vec<Expr>),
-    Assignment(String, Box<Expr>),
+    FunctionDef(String, Vec<String>, Rc<Expr>),
+    FunctionCall(Rc<Expr>, Vec<Rc<Expr>>),
+    Return(Rc<Expr>),
+    Block(Vec<Rc<Expr>>),
+    Assignment(String, Rc<Expr>),
     FFIDecl(String, Vec<String>),
-    FFICall(String, String, Vec<Expr>),
-    InfixOp(Box<Expr>, String, Box<Expr>),
-    NotationDecl(NotationPattern, Box<Expr>),
+    FFICall(String, String, Vec<Rc<Expr>>),
+    InfixOp(Rc<Expr>, String, Rc<Expr>),
+    NotationDecl(NotationPattern, Rc<Expr>),
 }
 
 #[derive(Clone)]
 pub enum Value {
     Primitive(Primitive),
-    Function(String, Vec<String>, Box<Expr>, Environment),
-    PartialApplication(Box<Value>, Vec<Value>),
+    Function(String, Vec<String>, Rc<Expr>, Rc<RefCell<Environment>>),
+    PartialApplication(Rc<Value>, Vec<Value>),
 }
 
 impl fmt::Debug for Value {
@@ -152,7 +156,16 @@ impl fmt::Debug for Expr {
             Expr::FFIDecl(name, params) => {
                 write!(f, "FFI declaration: {} ({})", name, params.join(", "))
             }
-            Expr::FFICall(module, func, _args) => write!(f, "FFI call: {}::{}(...)", module, func),
+            Expr::FFICall(module, func, args) => {
+                write!(f, "FFI call: {}::{}(", module, func)?;
+                for (i, arg) in args.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?
+                    }
+                    fmt::Debug::fmt(arg, f)?;
+                }
+                write!(f, ")")
+            }
             Expr::NotationDecl(pattern, expansion) => {
                 write!(f, "notation declaration: {} -> ", pattern)?;
                 fmt::Debug::fmt(expansion, f)

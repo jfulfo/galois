@@ -4,10 +4,12 @@ use crate::syntax::{Environment, Expr, Value};
 use colored::*;
 use std::cell::RefCell;
 use std::fmt;
+use std::time::{Duration, Instant};
 
 thread_local! {
     static CALL_STACK: RefCell<Vec<CallFrame>> = RefCell::new(Vec::new());
     static DEPTH: RefCell<usize> = RefCell::new(0);
+    static TIMINGS: RefCell<Vec<(String, Duration)>> = RefCell::new(Vec::new());
 }
 
 const MAX_DEPTH: usize = 1000; // Adjust this value as needed
@@ -16,6 +18,7 @@ const MAX_DEPTH: usize = 1000; // Adjust this value as needed
 pub struct CallFrame {
     function_name: String,
     args: Vec<String>,
+    start_time: Instant,
 }
 
 impl fmt::Display for CallFrame {
@@ -47,6 +50,7 @@ impl DebugPrinter {
         let frame = CallFrame {
             function_name: name.to_string(),
             args: args.iter().map(|arg| format!("{:?}", arg)).collect(),
+            start_time: Instant::now(),
         };
         CALL_STACK.with(|stack| {
             stack.borrow_mut().push(frame.clone());
@@ -64,11 +68,19 @@ impl DebugPrinter {
             *depth -= 1;
         });
         CALL_STACK.with(|stack| {
-            stack.borrow_mut().pop();
+            if let Some(frame) = stack.borrow_mut().pop() {
+                let duration = frame.start_time.elapsed();
+                TIMINGS.with(|timings| {
+                    timings
+                        .borrow_mut()
+                        .push((frame.function_name.clone(), duration));
+                });
+                println!("{} Exiting: {} (took {:?})", "←".blue(), name, duration);
+            }
         });
         match result {
-            Ok(value) => println!("{} Exiting: {} = {:?}", "←".blue(), name, value),
-            Err(e) => println!("{} Exiting: {} with error: {}", "←".red(), name, e),
+            Ok(value) => println!("  Result: {:?}", value),
+            Err(e) => println!("  Error: {}", e),
         }
         self.print_call_stack();
     }
@@ -93,10 +105,10 @@ impl DebugPrinter {
         let indent = "  ".repeat(depth);
         match value {
             Value::Primitive(p) => println!("{}Value: {:?}", indent, p),
-            Value::Function(name, params, body, env) => {
+            Value::Function(name, params, body, _) => {
                 println!("{}Function: {} ({})", indent, name, params.join(", "));
                 println!("{}Body:", indent);
-                self.log_expr(body, env, depth + 1);
+                self.log_expr(body, &Environment::new(), depth + 1);
             }
             Value::PartialApplication(func, args) => {
                 println!("{}Partial Application:", indent);
@@ -176,5 +188,19 @@ impl DebugPrinter {
                 println!("{}Infix Operation: {} {} {}", indent, left, op, right);
             }
         }
+    }
+
+    pub fn print_timings(&self) {
+        if !self.debug_mode {
+            return;
+        }
+        println!("{}", "Function Timings:".yellow());
+        TIMINGS.with(|timings| {
+            let mut timings = timings.borrow_mut();
+            timings.sort_by(|a, b| b.1.cmp(&a.1));
+            for (name, duration) in timings.iter() {
+                println!("  {}: {:?}", name, duration);
+            }
+        });
     }
 }

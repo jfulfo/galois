@@ -2,9 +2,9 @@
 
 A language by [zaphlambda](https://zaph.dev).
 
-## Installation:
+## Installation
 
-Only source for now.
+Only source for now: `cargo build --release`
 
 ## Documentation
 
@@ -13,4 +13,4 @@ See [galois.md](docs/galois.md)
 ## Acknowledgements
 
 - Penn faculty
-- Tinygrad/Geohot
+- Tinygrad

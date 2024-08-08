@@ -10,6 +10,7 @@ use interpreter::interpret;
 use parser::parse_program;
 use std::env;
 use std::fs;
+use std::time::Instant;
 use syntax::Environment;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -26,6 +27,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut debug_printer = DebugPrinter::new(debug_mode);
 
+    let start_time = Instant::now();
+
     match parse_program(&content) {
         Ok(exprs) => {
             if debug_mode {
@@ -38,8 +41,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     if debug_mode {
                         println!("Result:");
                         debug_printer.log_value(&result, 0);
+                        debug_printer.print_timings();
                     } else {
-                        println!("Result: {}", result);
+                        println!("{}", result);
                     }
                 }
                 Err(e) => eprintln!("Runtime error: {}", e),
@@ -47,6 +51,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Err(e) => eprintln!("Parse error: {}", e),
     }
+
+    let duration = start_time.elapsed();
+    println!("took {:?}", duration);
 
     Ok(())
 }

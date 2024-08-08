@@ -12,7 +12,6 @@ pub enum InterpreterError {
     TypeMismatch(String),
     ArityMismatch(String),
     ReturnOutsideFunction,
-    StackOverflow,
 }
 
 impl fmt::Display for InterpreterError {
@@ -24,22 +23,19 @@ impl fmt::Display for InterpreterError {
             InterpreterError::ReturnOutsideFunction => {
                 write!(f, "Return statement outside of function")
             }
-            InterpreterError::StackOverflow => {
-                write!(f, "Stack overflow: maximum recursion depth exceeded")
-            }
         }
     }
 }
 
-const MAX_STACK_DEPTH: usize = 1000;
-
-pub fn interpret(exprs: Vec<Expr>, debug: &mut DebugPrinter) -> Result<Value, InterpreterError> {
-    let mut env = Environment::new();
+pub fn interpret(
+    exprs: Vec<Rc<Expr>>,
+    debug: &mut DebugPrinter,
+) -> Result<Value, InterpreterError> {
+    let env = Rc::new(RefCell::new(Environment::new()));
     let mut result = Value::Primitive(Primitive::Bool(false));
-    let stack_depth = Rc::new(RefCell::new(0));
 
     for expr in exprs {
-        result = eval_expr(&expr, &mut env, debug, Rc::clone(&stack_depth))?;
+        result = eval_expr(&expr, Rc::clone(&env), debug)?;
     }
 
     Ok(result)
@@ -47,70 +43,71 @@ pub fn interpret(exprs: Vec<Expr>, debug: &mut DebugPrinter) -> Result<Value, In
 
 fn eval_expr(
     expr: &Expr,
-    env: &mut Environment,
+    env: Rc<RefCell<Environment>>,
     debug: &DebugPrinter,
-    stack_depth: Rc<RefCell<usize>>,
 ) -> Result<Value, InterpreterError> {
-    *stack_depth.borrow_mut() += 1;
-    if *stack_depth.borrow() > MAX_STACK_DEPTH {
-        return Err(InterpreterError::StackOverflow);
-    }
-
-    debug.log_expr(expr, env, 0);
+    // TODO: Fix this when uncommented
+    //debug.log_expr(expr, Rc::clone(&env)
 
     let result = match expr {
         Expr::Primitive(p) => Ok(Value::Primitive(p.clone())),
         Expr::Variable(name) => env
+            .try_borrow()
+            .map_err(|_| {
+                InterpreterError::TypeMismatch("Failed to borrow environment".to_string())
+            })?
             .get(name)
             .cloned()
             .ok_or_else(|| InterpreterError::UndefinedVariable(name.clone())),
         Expr::FunctionDef(name, params, body) => {
-            let func_value =
-                Value::Function(name.clone(), params.clone(), body.clone(), env.clone());
-            env.insert(name.clone(), func_value.clone());
+            let func_value = Value::Function(
+                name.clone(),
+                params.clone(),
+                Rc::clone(body),
+                Rc::clone(&env),
+            );
+            env.borrow_mut().insert(name.clone(), func_value.clone());
             Ok(func_value)
         }
         Expr::FunctionCall(func, args) => {
-            let func_value = eval_expr(func, env, debug, Rc::clone(&stack_depth))?;
+            let func_value = eval_expr(func, Rc::clone(&env), debug)?;
             let arg_values: Result<Vec<Value>, InterpreterError> = args
                 .iter()
-                .map(|arg| eval_expr(arg, env, debug, Rc::clone(&stack_depth)))
+                .map(|arg| eval_expr(arg, Rc::clone(&env), debug))
                 .collect();
-            apply_function(func_value, arg_values?, env, debug, Rc::clone(&stack_depth))
+            apply_function(func_value, arg_values?, Rc::clone(&env), debug)
         }
-        Expr::Return(e) => eval_expr(e, env, debug, Rc::clone(&stack_depth)),
+        Expr::Return(e) => eval_expr(e, env, debug),
         Expr::Block(exprs) => {
             let mut result = Value::Primitive(Primitive::Bool(false));
             for expr in exprs {
-                result = eval_expr(expr, env, debug, Rc::clone(&stack_depth))?;
+                result = eval_expr(expr, Rc::clone(&env), debug)?;
             }
             Ok(result)
         }
         Expr::Assignment(name, expr) => {
-            let value = eval_expr(expr, env, debug, Rc::clone(&stack_depth))?;
-            env.insert(name.clone(), value.clone());
+            let value = eval_expr(expr, Rc::clone(&env), debug)?;
+            env.borrow_mut().insert(name.clone(), value.clone());
             Ok(value)
         }
         Expr::InfixOp(_, _, _) => Ok(Value::Primitive(Primitive::Bool(true))),
         Expr::NotationDecl(_, _) => Ok(Value::Primitive(Primitive::Bool(true))),
-
         Expr::FFIDecl(_, _) => Ok(Value::Primitive(Primitive::Bool(true))),
         Expr::FFICall(_, _, _) => Ok(Value::Primitive(Primitive::Bool(true))),
     };
 
-    *stack_depth.borrow_mut() -= 1;
+    //*stack_depth.borrow_mut() -= 1;
     result
 }
 
 fn apply_function(
     func: Value,
     args: Vec<Value>,
-    env: &mut Environment,
+    env: Rc<RefCell<Environment>>,
     debug: &DebugPrinter,
-    stack_depth: Rc<RefCell<usize>>,
 ) -> Result<Value, InterpreterError> {
     match func {
-        Value::Function(name, params, body, mut closure_env) => {
+        Value::Function(name, params, body, closure_env) => {
             debug.log_entry(&name, &args);
 
             if args.len() != params.len() {
@@ -124,18 +121,20 @@ fn apply_function(
                 return error;
             }
 
+            let mut new_env = (*closure_env).borrow().clone();
             for (param, arg) in params.iter().zip(args.iter()) {
-                closure_env.insert(param.clone(), arg.clone());
+                new_env.insert(param.clone(), arg.clone());
             }
 
-            let result = eval_expr(&body, &mut closure_env, debug, stack_depth);
+            let new_env = Rc::new(RefCell::new(new_env));
+            let result = eval_expr(&body, new_env, debug);
             debug.log_exit(&name, &result.clone().map_err(|e| e.to_string()));
             result
         }
         Value::PartialApplication(func, prev_args) => {
             let mut all_args = prev_args;
             all_args.extend(args);
-            apply_function(*func, all_args, env, debug, stack_depth)
+            apply_function((*func).clone(), all_args, env, debug)
         }
         _ => Err(InterpreterError::TypeMismatch(
             "Attempted to call a non-function value".to_string(),

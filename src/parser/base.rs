@@ -12,6 +12,7 @@ use nom::{
 };
 
 use crate::syntax::{Associativity, Expr, NotationPattern, Primitive};
+use std::rc::Rc;
 
 type ParseResult<'a, O> = IResult<&'a str, O, VerboseError<&'a str>>;
 
@@ -44,15 +45,18 @@ fn ws(input: &str) -> ParseResult<()> {
     )(input)
 }
 
-fn parse_primitive(input: &str) -> ParseResult<Expr> {
+fn parse_primitive(input: &str) -> ParseResult<Rc<Expr>> {
     context(
         "primitive",
-        alt((
-            map(parse_float, |f| Expr::Primitive(Primitive::Float(f))),
-            map(parse_int, |i| Expr::Primitive(Primitive::Int(i))),
-            map(parse_string, |s| Expr::Primitive(Primitive::String(s))),
-            map(parse_bool, |b| Expr::Primitive(Primitive::Bool(b))),
-        )),
+        map(
+            alt((
+                map(parse_float, Primitive::Float),
+                map(parse_int, Primitive::Int),
+                map(parse_string, Primitive::String),
+                map(parse_bool, Primitive::Bool),
+            )),
+            |p| Rc::new(Expr::Primitive(p)),
+        ),
     )(input)
 }
 
@@ -109,7 +113,7 @@ fn parse_bool(input: &str) -> ParseResult<bool> {
     )(input)
 }
 
-fn parse_variable(input: &str) -> ParseResult<Expr> {
+fn parse_variable(input: &str) -> ParseResult<Rc<Expr>> {
     context(
         "variable",
         map(
@@ -117,19 +121,19 @@ fn parse_variable(input: &str) -> ParseResult<Expr> {
                 alt((alpha1, tag("_"))),
                 many0(alt((alphanumeric1, tag("_")))),
             )),
-            |s: &str| Expr::Variable(s.to_string()),
+            |s: &str| Rc::new(Expr::Variable(s.to_string())),
         ),
     )(input)
 }
 
-fn parse_assignment(input: &str) -> ParseResult<Expr> {
+fn parse_assignment(input: &str) -> ParseResult<Rc<Expr>> {
     context(
         "assignment",
         map(
             tuple((parse_variable, delimited(ws, char('='), ws), parse_expr)),
             |(var, _, expr)| {
-                if let Expr::Variable(name) = var {
-                    Expr::Assignment(name, Box::new(expr))
+                if let Expr::Variable(name) = &*var {
+                    Rc::new(Expr::Assignment(name.clone(), expr))
                 } else {
                     panic!("Expected variable name in assignment")
                 }
@@ -138,7 +142,7 @@ fn parse_assignment(input: &str) -> ParseResult<Expr> {
     )(input)
 }
 
-fn parse_function_def(input: &str) -> ParseResult<Expr> {
+fn parse_function_def(input: &str) -> ParseResult<Rc<Expr>> {
     context(
         "function definition",
         map(
@@ -154,21 +158,21 @@ fn parse_function_def(input: &str) -> ParseResult<Expr> {
                 delimited(ws, char('}'), ws),
             )),
             |(name, params, _, body, _)| {
-                if let Expr::Variable(name) = name {
-                    Expr::FunctionDef(
-                        name,
+                if let Expr::Variable(name) = &*name {
+                    Rc::new(Expr::FunctionDef(
+                        name.clone(),
                         params
                             .into_iter()
                             .map(|e| {
-                                if let Expr::Variable(name) = e {
-                                    name
+                                if let Expr::Variable(name) = &*e {
+                                    name.clone()
                                 } else {
                                     panic!("Expected variable in function parameters")
                                 }
                             })
                             .collect(),
-                        Box::new(body),
-                    )
+                        body,
+                    ))
                 } else {
                     panic!("Expected variable name for function")
                 }
@@ -177,7 +181,7 @@ fn parse_function_def(input: &str) -> ParseResult<Expr> {
     )(input)
 }
 
-fn parse_block(input: &str) -> ParseResult<Expr> {
+fn parse_block(input: &str) -> ParseResult<Rc<Expr>> {
     context(
         "block",
         map(
@@ -185,12 +189,12 @@ fn parse_block(input: &str) -> ParseResult<Expr> {
                 alt((parse_function_def, parse_expr)),
                 delimited(ws, opt(char(';')), ws),
             )),
-            Expr::Block,
+            |exprs| Rc::new(Expr::Block(exprs)),
         ),
     )(input)
 }
 
-fn parse_function_call(input: &str) -> ParseResult<Expr> {
+fn parse_function_call(input: &str) -> ParseResult<Rc<Expr>> {
     context(
         "function call",
         map(
@@ -202,21 +206,21 @@ fn parse_function_call(input: &str) -> ParseResult<Expr> {
                     char(')'),
                 ),
             ),
-            |(func, args)| Expr::FunctionCall(Box::new(func), args),
+            |(func, args)| Rc::new(Expr::FunctionCall(func, args)),
         ),
     )(input)
 }
 
-fn parse_return(input: &str) -> ParseResult<Expr> {
+fn parse_return(input: &str) -> ParseResult<Rc<Expr>> {
     context(
         "return",
         map(preceded(pair(tag("return"), ws), parse_expr), |expr| {
-            Expr::Return(Box::new(expr))
+            Rc::new(Expr::Return(expr))
         }),
     )(input)
 }
 
-fn parse_term(input: &str) -> ParseResult<Expr> {
+fn parse_term(input: &str) -> ParseResult<Rc<Expr>> {
     context(
         "term",
         delimited(
@@ -236,14 +240,14 @@ fn parse_infix_op(input: &str) -> ParseResult<&str> {
     recognize(many1(one_of("!@#$%^&*-+=|<>?/:~")))(input)
 }
 
-fn parse_infix_expr(input: &str) -> ParseResult<Expr> {
+fn parse_infix_expr(input: &str) -> ParseResult<Rc<Expr>> {
     let (input, first_term) = parse_term(input)?;
     let (input, rest) = many0(tuple((delimited(ws, parse_infix_op, ws), parse_term)))(input)?;
 
     Ok((
         input,
         rest.into_iter().fold(first_term, |acc, (op, term)| {
-            Expr::InfixOp(Box::new(acc), op.to_string(), Box::new(term))
+            Rc::new(Expr::InfixOp(acc, op.to_string(), term))
         }),
     ))
 }
@@ -274,8 +278,8 @@ fn parse_notation_pattern(input: &str) -> ParseResult<NotationPattern> {
                     .unwrap_or_default()
                     .into_iter()
                     .map(|v| {
-                        if let Expr::Variable(name) = v {
-                            name
+                        if let Expr::Variable(name) = &*v {
+                            name.clone()
                         } else {
                             panic!("Expected variable in notation pattern")
                         }
@@ -288,7 +292,7 @@ fn parse_notation_pattern(input: &str) -> ParseResult<NotationPattern> {
     )(input)
 }
 
-fn parse_notation_decl(input: &str) -> ParseResult<Expr> {
+fn parse_notation_decl(input: &str) -> ParseResult<Rc<Expr>> {
     context(
         "notation declaration",
         map(
@@ -297,12 +301,12 @@ fn parse_notation_decl(input: &str) -> ParseResult<Expr> {
                 delimited(ws, tag(":="), ws),
                 parse_expr,
             )),
-            |(pattern, _, expansion)| Expr::NotationDecl(pattern, Box::new(expansion)),
+            |(pattern, _, expansion)| Rc::new(Expr::NotationDecl(pattern, expansion)),
         ),
     )(input)
 }
 
-fn parse_expr(input: &str) -> ParseResult<Expr> {
+fn parse_expr(input: &str) -> ParseResult<Rc<Expr>> {
     context(
         "expression",
         delimited(
@@ -313,7 +317,7 @@ fn parse_expr(input: &str) -> ParseResult<Expr> {
     )(input)
 }
 
-fn parse_top_level_expr(input: &str) -> ParseResult<Expr> {
+fn parse_top_level_expr(input: &str) -> ParseResult<Rc<Expr>> {
     context(
         "top level expression",
         alt((
@@ -324,7 +328,7 @@ fn parse_top_level_expr(input: &str) -> ParseResult<Expr> {
     )(input)
 }
 
-pub fn parse_program(input: &str) -> ParseResult<Vec<Expr>> {
+pub fn parse_program(input: &str) -> ParseResult<Vec<Rc<Expr>>> {
     context(
         "program",
         all_consuming(delimited(ws, many1(parse_top_level_expr), ws)),
