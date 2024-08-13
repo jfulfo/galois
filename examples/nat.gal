@@ -1,74 +1,74 @@
 // church nat
-def ctrue(x, y) {
+fn ctrue(x, y) {
     x
 }
 
-def cfalse(x, y) {
+fn cfalse(x, y) {
     y
 }
 
-def zero(f, x) {
+fn zero(f, x) {
     x
 }
 
-def is_zero(n) {
-    def always_false(x) {
+fn is_zero(n) {
+    fn always_false(x) {
         cfalse
     }
     n(always_false, ctrue)
 }
 
-def succ(n) {
-    def succ_inner(f, x) {
+fn succ(n) {
+    fn succ_inner(f, x) {
         f(n(f, x))
     }
     succ_inner
 }
 
-def add(m, n) {
+fn add(m, n) {
     n(succ, m)
 }
 
 
-def mult(m, n) {
+fn mult(m, n) {
     n(add(m, zero), zero)
 }
 
 
-def one() {
+fn one() {
     return succ(zero)
 }
 
-def two() {
+fn two() {
     return succ(one())
 }
 
-def three() {
+fn three() {
     return succ(two())
 }
 
-def id(x) {
+fn id(x) {
     x
 }
 
-def pair(a, b) {
-    def pair_inner(f) {
+fn pair(a, b) {
+    fn pair_inner(f) {
         f(a, b)
     }
     pair_inner
 }
 
-def first(p) {
+fn first(p) {
     p(ctrue)
 }
 
-def second(p) {
+fn second(p) {
     p(cfalse)
 }
 
-def pred(n) {
-    def pred_inner(f, x) {
-        def g(p) {
+fn pred(n) {
+    fn pred_inner(f, x) {
+        fn g(p) {
             pair(f(first(p)), first(p))
         }
         second(n(g, pair(x, x)))
@@ -76,7 +76,7 @@ def pred(n) {
     pred_inner
 }
 
-def minus(m, n) { // m - n
+fn minus(m, n) { // m - n
     return n(pred, m)
 }
 

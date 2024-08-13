@@ -7,12 +7,9 @@ use std::fmt;
 use std::time::{Duration, Instant};
 
 thread_local! {
-    static CALL_STACK: RefCell<Vec<CallFrame>> = RefCell::new(Vec::new());
-    static DEPTH: RefCell<usize> = RefCell::new(0);
-    static TIMINGS: RefCell<Vec<(String, Duration)>> = RefCell::new(Vec::new());
+    static CALL_STACK: RefCell<Vec<CallFrame>> = const { RefCell::new(Vec::new()) };
+    static TIMINGS: RefCell<Vec<(String, Duration)>> = const { RefCell::new(Vec::new()) };
 }
-
-const MAX_DEPTH: usize = 1000; // Adjust this value as needed
 
 #[derive(Clone, Debug)]
 pub struct CallFrame {
@@ -40,13 +37,6 @@ impl DebugPrinter {
         if !self.debug_mode {
             return;
         }
-        DEPTH.with(|depth| {
-            let mut depth = depth.borrow_mut();
-            *depth += 1;
-            if *depth > MAX_DEPTH {
-                panic!("Maximum recursion depth exceeded");
-            }
-        });
         let frame = CallFrame {
             function_name: name.to_string(),
             args: args.iter().map(|arg| format!("{:?}", arg)).collect(),
@@ -63,10 +53,6 @@ impl DebugPrinter {
         if !self.debug_mode {
             return;
         }
-        DEPTH.with(|depth| {
-            let mut depth = depth.borrow_mut();
-            *depth -= 1;
-        });
         CALL_STACK.with(|stack| {
             if let Some(frame) = stack.borrow_mut().pop() {
                 let duration = frame.start_time.elapsed();
@@ -108,7 +94,8 @@ impl DebugPrinter {
             Value::Function(name, params, body, _) => {
                 println!("{}Function: {} ({})", indent, name, params.join(", "));
                 println!("{}Body:", indent);
-                self.log_expr(body, &Environment::new(), depth + 1);
+                body.iter()
+                    .for_each(|e| self.log_expr(e, &Environment::new(), depth + 1));
             }
             Value::PartialApplication(func, args) => {
                 println!("{}Partial Application:", indent);
@@ -137,7 +124,7 @@ impl DebugPrinter {
                     params.join(", ")
                 );
                 println!("{}Body:", indent);
-                self.log_expr(body, env, depth + 1);
+                body.iter().for_each(|e| self.log_expr(e, env, depth + 1));
             }
             Expr::FunctionCall(func, args) => {
                 println!("{}Function Call:", indent);
@@ -152,25 +139,18 @@ impl DebugPrinter {
                 println!("{}Return:", indent);
                 self.log_expr(e, env, depth + 1);
             }
-            Expr::Block(exprs) => {
-                println!("{}Block:", indent);
-                for (i, e) in exprs.iter().enumerate() {
-                    println!("{}Expression {}:", indent, i);
-                    self.log_expr(e, env, depth + 1);
-                }
-            }
             Expr::Assignment(name, e) => {
                 println!("{}Assignment: {}", indent, name);
                 self.log_expr(e, env, depth + 1);
             }
-            Expr::FFIDecl(name, params) => {
-                println!(
-                    "{}FFI Declaration: {} ({})",
-                    indent,
-                    name,
-                    params.join(", ")
-                );
-            }
+            Expr::FFIDecl(name, given_name) => match given_name {
+                Some(given_name) => {
+                    println!("{}FFI Declaration: {} as {}", indent, name, given_name);
+                }
+                None => {
+                    println!("{}FFI Declaration: {}", indent, name);
+                }
+            },
             Expr::FFICall(module, func, args) => {
                 println!("{}FFI Call: {}::{}", indent, module, func);
                 println!("{}Arguments:", indent);

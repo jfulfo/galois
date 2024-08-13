@@ -63,7 +63,7 @@ fn eval_expr(
             let func_value = Value::Function(
                 name.clone(),
                 params.clone(),
-                Rc::clone(body),
+                body.iter().cloned().collect::<Vec<Rc<Expr>>>(),
                 Rc::clone(&env),
             );
             env.borrow_mut().insert(name.clone(), func_value.clone());
@@ -78,13 +78,6 @@ fn eval_expr(
             apply_function(func_value, arg_values?, Rc::clone(&env), debug)
         }
         Expr::Return(e) => eval_expr(e, env, debug),
-        Expr::Block(exprs) => {
-            let mut result = Value::Primitive(Primitive::Bool(false));
-            for expr in exprs {
-                result = eval_expr(expr, Rc::clone(&env), debug)?;
-            }
-            Ok(result)
-        }
         Expr::Assignment(name, expr) => {
             let value = eval_expr(expr, Rc::clone(&env), debug)?;
             env.borrow_mut().insert(name.clone(), value.clone());
@@ -127,7 +120,11 @@ fn apply_function(
             }
 
             let new_env = Rc::new(RefCell::new(new_env));
-            let result = eval_expr(&body, new_env, debug);
+            let result = body
+                .iter()
+                .try_fold(Value::Primitive(Primitive::Bool(false)), |_, expr| {
+                    eval_expr(expr, Rc::clone(&new_env), debug)
+                });
             debug.log_exit(&name, &result.clone().map_err(|e| e.to_string()));
             result
         }

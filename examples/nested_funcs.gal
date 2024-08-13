@@ -1,14 +1,14 @@
-def compose(f, g) {
-    def composed(x) {
+fn compose(f, g) {
+    fn composed(x) {
         f(g(x))
     }
     composed
 }
 
-def id(x) { x }
+fn id(x) { x }
 
-def wrap(x) {
-    def inner(y) { y }
+fn wrap(x) {
+    fn inner(y) { y }
     inner(x)
 }
 

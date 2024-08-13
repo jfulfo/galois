@@ -1,13 +1,13 @@
-def list(acc, f) {
+fn list(acc, f) {
   acc = f(acc, 0)
   acc = f(acc, 1)
   acc = f(acc, 2)
   acc
 }
 
-def list_id(l) {
-  def ret(acc, f) {
-    def foreach(accprime, x) {
+fn list_id(l) {
+  fn ret(acc, f) {
+    fn foreach(accprime, x) {
       accprime = f(accprime, x)
       accprime
     }
@@ -17,8 +17,8 @@ def list_id(l) {
   ret
 }
 
-def push_back(tail, head) {
-  def ret(acc, f) {
+fn push_back(tail, head) {
+  fn ret(acc, f) {
     acc = tail(acc, f)
     acc = f(acc, head)
     acc
@@ -26,7 +26,8 @@ def push_back(tail, head) {
   ret
 }
 
-push_back(list, 3)
+l2 = list_id(list)
+push_back(l2, 3)
 
 /* this just prints `Result: function ret (acc, f) { { acc = tail(acc, f); acc = f(acc, head); acc } }`
    we something to "consume" the value (i.e. an effect). currently we do not have a way of doing this.

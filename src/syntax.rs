@@ -1,7 +1,5 @@
 // syntax.rs
 
-// syntax.rs
-
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt;
@@ -13,6 +11,8 @@ pub enum Primitive {
     Float(f64),
     String(String),
     Bool(bool),
+    // TODO: need to define what exprs can actually be in an array better
+    Array(Vec<Rc<Expr>>),
 }
 
 impl fmt::Display for Primitive {
@@ -22,6 +22,16 @@ impl fmt::Display for Primitive {
             Primitive::Float(fl) => write!(f, "{}", fl),
             Primitive::String(s) => write!(f, "\"{}\"", s),
             Primitive::Bool(b) => write!(f, "{}", b),
+            Primitive::Array(arr) => {
+                write!(f, "[")?;
+                for (i, p) in arr.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    fmt::Display::fmt(p, f)?;
+                }
+                write!(f, "]")
+            }
         }
     }
 }
@@ -59,12 +69,13 @@ pub enum Associativity {
 pub enum Expr {
     Primitive(Primitive),
     Variable(String),
-    FunctionDef(String, Vec<String>, Rc<Expr>),
+    FunctionDef(String, Vec<String>, Vec<Rc<Expr>>),
     FunctionCall(Rc<Expr>, Vec<Rc<Expr>>),
     Return(Rc<Expr>),
-    Block(Vec<Rc<Expr>>),
     Assignment(String, Rc<Expr>),
-    FFIDecl(String, Vec<String>),
+    FFIDecl(String, Option<String>),
+    // think if we just want this to be a function call
+    // that is added to the environment
     FFICall(String, String, Vec<Rc<Expr>>),
     InfixOp(Rc<Expr>, String, Rc<Expr>),
     NotationDecl(NotationPattern, Rc<Expr>),
@@ -73,7 +84,7 @@ pub enum Expr {
 #[derive(Clone)]
 pub enum Value {
     Primitive(Primitive),
-    Function(String, Vec<String>, Rc<Expr>, Rc<RefCell<Environment>>),
+    Function(String, Vec<String>, Vec<Rc<Expr>>, Rc<RefCell<Environment>>),
     PartialApplication(Rc<Value>, Vec<Value>),
 }
 
@@ -83,7 +94,10 @@ impl fmt::Debug for Value {
             Value::Primitive(p) => write!(f, "{}", p),
             Value::Function(name, params, body, _) => {
                 write!(f, "function {} ({}) {{ ", name, params.join(", "))?;
-                fmt::Debug::fmt(body, f)?;
+                body.iter().for_each(|e| {
+                    let _ = fmt::Debug::fmt(e, f);
+                    write!(f, "; ").unwrap();
+                });
                 write!(f, " }}")
             }
             Value::PartialApplication(func, args) => {
@@ -99,7 +113,10 @@ impl fmt::Display for Value {
             Value::Primitive(p) => write!(f, "{}", p),
             Value::Function(name, params, body, _) => {
                 write!(f, "function {} ({}) {{ ", name, params.join(", "))?;
-                fmt::Display::fmt(body, f)?;
+                body.iter().for_each(|e| {
+                    let _ = fmt::Display::fmt(e, f);
+                    write!(f, "; ").unwrap();
+                });
                 write!(f, " }}")
             }
             Value::PartialApplication(func, args) => {
@@ -121,7 +138,10 @@ impl fmt::Debug for Expr {
             Expr::Variable(name) => write!(f, "{}", name),
             Expr::FunctionDef(name, params, body) => {
                 write!(f, "function {} ({}) {{ ", name, params.join(", "))?;
-                fmt::Debug::fmt(body, f)?;
+                body.iter().for_each(|e| {
+                    let _ = fmt::Debug::fmt(e, f);
+                    write!(f, "; ").unwrap();
+                });
                 write!(f, " }}")
             }
             Expr::FunctionCall(func, args) => {
@@ -139,23 +159,18 @@ impl fmt::Debug for Expr {
                 write!(f, "return ")?;
                 fmt::Debug::fmt(e, f)
             }
-            Expr::Block(exprs) => {
-                write!(f, "{{ ")?;
-                for (i, e) in exprs.iter().enumerate() {
-                    if i > 0 {
-                        write!(f, "; ")?
-                    }
-                    fmt::Debug::fmt(e, f)?;
-                }
-                write!(f, " }}")
-            }
             Expr::Assignment(name, e) => {
                 write!(f, "{} = ", name)?;
                 fmt::Debug::fmt(e, f)
             }
-            Expr::FFIDecl(name, params) => {
-                write!(f, "FFI declaration: {} ({})", name, params.join(", "))
-            }
+            Expr::FFIDecl(name, given_name) => match given_name {
+                Some(given_name) => {
+                    write!(f, "FFI Declaration: {} as {}", name, given_name)
+                }
+                None => {
+                    write!(f, "FFI Declaration: {}", name)
+                }
+            },
             Expr::FFICall(module, func, args) => {
                 write!(f, "FFI call: {}::{}(", module, func)?;
                 for (i, arg) in args.iter().enumerate() {

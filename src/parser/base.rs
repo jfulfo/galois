@@ -54,6 +54,7 @@ fn parse_primitive(input: &str) -> ParseResult<Rc<Expr>> {
                 map(parse_int, Primitive::Int),
                 map(parse_string, Primitive::String),
                 map(parse_bool, Primitive::Bool),
+                map(parse_array, Primitive::Array),
             )),
             |p| Rc::new(Expr::Primitive(p)),
         ),
@@ -113,6 +114,17 @@ fn parse_bool(input: &str) -> ParseResult<bool> {
     )(input)
 }
 
+fn parse_array(input: &str) -> ParseResult<Vec<Rc<Expr>>> {
+    context(
+        "array",
+        delimited(
+            char('['),
+            separated_list0(delimited(ws, char(','), ws), parse_expr),
+            char(']'),
+        ),
+    )(input)
+}
+
 fn parse_variable(input: &str) -> ParseResult<Rc<Expr>> {
     context(
         "variable",
@@ -147,14 +159,14 @@ fn parse_function_def(input: &str) -> ParseResult<Rc<Expr>> {
         "function definition",
         map(
             tuple((
-                preceded(pair(tag("def"), ws), parse_variable),
+                preceded(pair(tag("fn"), ws), parse_variable),
                 delimited(
                     char('('),
                     separated_list0(delimited(ws, char(','), ws), parse_variable),
                     char(')'),
                 ),
                 delimited(ws, char('{'), ws),
-                parse_block,
+                many0(terminated(parse_expr, delimited(ws, opt(char(';')), ws))),
                 delimited(ws, char('}'), ws),
             )),
             |(name, params, _, body, _)| {
@@ -177,19 +189,6 @@ fn parse_function_def(input: &str) -> ParseResult<Rc<Expr>> {
                     panic!("Expected variable name for function")
                 }
             },
-        ),
-    )(input)
-}
-
-fn parse_block(input: &str) -> ParseResult<Rc<Expr>> {
-    context(
-        "block",
-        map(
-            many0(terminated(
-                alt((parse_function_def, parse_expr)),
-                delimited(ws, opt(char(';')), ws),
-            )),
-            |exprs| Rc::new(Expr::Block(exprs)),
         ),
     )(input)
 }
@@ -306,12 +305,44 @@ fn parse_notation_decl(input: &str) -> ParseResult<Rc<Expr>> {
     )(input)
 }
 
+fn parse_ffi_decl(input: &str) -> ParseResult<Rc<Expr>> {
+    context(
+        "ffi declaration",
+        map(
+            tuple((
+                preceded(pair(tag("using"), ws), parse_variable),
+                opt(preceded(
+                    delimited(ws, tag("as"), ws),
+                    map(
+                        recognize(pair(
+                            alt((alpha1, tag("_"))),
+                            many0(alt((alphanumeric1, tag("_")))),
+                        )),
+                        |s: &str| s.to_string(),
+                    ),
+                )),
+            )),
+            |(ffi_name, name)| {
+                Rc::new(Expr::FFIDecl(
+                    ffi_name.to_string(),
+                    name.map_or_else(|| None, Some),
+                ))
+            },
+        ),
+    )(input)
+}
+
 fn parse_expr(input: &str) -> ParseResult<Rc<Expr>> {
     context(
         "expression",
         delimited(
             ws,
-            alt((parse_assignment, parse_return, parse_infix_expr)),
+            alt((
+                parse_function_def,
+                parse_assignment,
+                parse_return,
+                parse_infix_expr,
+            )),
             ws,
         ),
     )(input)
@@ -321,7 +352,7 @@ fn parse_top_level_expr(input: &str) -> ParseResult<Rc<Expr>> {
     context(
         "top level expression",
         alt((
-            parse_function_def,
+            parse_ffi_decl,
             parse_notation_decl,
             terminated(parse_expr, delimited(ws, opt(char(';')), ws)),
         )),

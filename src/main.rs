@@ -46,10 +46,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         println!("{}", result);
                     }
                 }
-                Err(e) => eprintln!("Runtime error: {}", e),
+                Err(e) => {
+                    eprintln!("Runtime error: {}", e);
+                    std::process::exit(1);
+                }
             }
         }
-        Err(e) => eprintln!("Parse error: {}", e),
+        Err(e) => {
+            eprintln!("Parse error: {}", e);
+            std::process::exit(1);
+        }
     }
 
     let duration = start_time.elapsed();

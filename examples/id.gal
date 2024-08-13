@@ -1,9 +1,10 @@
-def id(x) {
+fn id(x) {
   x
 }
 
-def app(f,x) {
+fn app(f,x) {
   f(x)
 }
 
-app(id, "hello world")
+x = id("hello")
+app(id, [fn easy(y) { y }, 3.14])

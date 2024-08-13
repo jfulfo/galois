@@ -40,7 +40,9 @@ fn expand_expr(expr: Rc<Expr>, notations: &[Notation]) -> Result<Rc<Expr>, Strin
         Expr::FunctionDef(name, params, body) => Rc::new(Expr::FunctionDef(
             name.clone(),
             params.clone(),
-            expand_expr(Rc::clone(body), notations)?,
+            body.iter()
+                .map(|e| expand_expr(Rc::clone(e), notations))
+                .collect::<Result<_, _>>()?,
         )),
         Expr::FunctionCall(func, args) => {
             let expanded_func = expand_expr(Rc::clone(func), notations)?;
@@ -51,13 +53,6 @@ fn expand_expr(expr: Rc<Expr>, notations: &[Notation]) -> Result<Rc<Expr>, Strin
             Rc::new(Expr::FunctionCall(expanded_func, expanded_args))
         }
         Expr::Return(e) => Rc::new(Expr::Return(expand_expr(Rc::clone(e), notations)?)),
-        Expr::Block(exprs) => {
-            let expanded_exprs = exprs
-                .iter()
-                .map(|e| expand_expr(Rc::clone(e), notations))
-                .collect::<Result<Vec<_>, _>>()?;
-            Rc::new(Expr::Block(expanded_exprs))
-        }
         Expr::Assignment(name, e) => Rc::new(Expr::Assignment(
             name.clone(),
             expand_expr(Rc::clone(e), notations)?,
