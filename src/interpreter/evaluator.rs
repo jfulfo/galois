@@ -75,6 +75,7 @@ impl Interpreter {
             }
             Expr::FunctionCall(func, args) => {
                 let func_value = self.eval_expr(func)?;
+                // bug here because in the .map self.env gets overwritten?
                 let arg_values: Result<Vec<Value>, InterpreterError> =
                     args.iter().map(|arg| self.eval_expr(arg)).collect();
                 self.apply_function(func_value, arg_values?)
@@ -87,10 +88,11 @@ impl Interpreter {
             }
             Expr::FFIDecl(module, name, alias) => {
                 self.ffi
-                    .load_module(module, alias.as_deref())
+                    .load_module(module)
                     .map_err(|e| InterpreterError::FFIError(e.to_string()))?;
 
                 let ffi_name = alias.as_ref().unwrap_or(name);
+                // implicit aliasing
                 self.env
                     .borrow_mut()
                     .insert(ffi_name.to_string(), Value::Ffi(name.to_string()));
@@ -108,30 +110,34 @@ impl Interpreter {
     fn apply_function(&mut self, func: Value, args: Vec<Value>) -> Result<Value, InterpreterError> {
         match func {
             Value::Function(name, params, body, closure_env) => {
+                self.debug.log_entry(&name, &args);
                 if args.len() != params.len() {
-                    return Err(InterpreterError::ArityMismatch(format!(
+                    let error = Err(InterpreterError::ArityMismatch(format!(
                         "Function '{}' expects {} arguments, but got {}",
                         name,
                         params.len(),
                         args.len()
                     )));
+                    self.debug
+                        .log_exit(&name, &error.clone().map_err(|e| e.to_string()));
+                    return error;
                 }
 
                 let mut new_env = (*closure_env).borrow().clone();
                 for (param, arg) in params.iter().zip(args.iter()) {
                     new_env.insert(param.clone(), arg.clone());
                 }
+                self.env = Rc::new(RefCell::new(new_env));
 
-                let mut result = Value::Primitive(Primitive::Bool(false));
+                let result = body
+                    .iter()
+                    .try_fold(Value::Primitive(Primitive::Bool(false)), |_, expr| {
+                        self.eval_expr(expr)
+                    });
+                self.debug
+                    .log_exit(&name, &result.clone().map_err(|e| e.to_string()));
 
-                for expr in &body {
-                    result = self.eval_expr(expr)?;
-                    if let Expr::Return(_) = **expr {
-                        break;
-                    }
-                }
-
-                Ok(result)
+                Ok(result?)
             }
             Value::Ffi(ffi_name) => {
                 self.debug.log_entry(&ffi_name, &args);

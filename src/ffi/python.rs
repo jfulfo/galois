@@ -5,14 +5,12 @@ use crate::syntax::{Primitive, Value};
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 use std::collections::HashMap;
-use std::env;
 use std::error::Error;
 use std::fs;
 
 pub struct PythonFFI {
     py: Python<'static>,
     modules: HashMap<String, Py<PyModule>>,
-    aliases: HashMap<String, String>,
 }
 
 impl PythonFFI {
@@ -21,7 +19,6 @@ impl PythonFFI {
         Ok(PythonFFI {
             py: unsafe { Python::assume_gil_acquired() },
             modules: HashMap::new(),
-            aliases: HashMap::new(),
         })
     }
 
@@ -63,14 +60,8 @@ impl PythonFFI {
 }
 
 impl FFIProtocol for PythonFFI {
-    fn load_module(
-        &mut self,
-        module_path: &str,
-        alias: Option<&str>,
-    ) -> Result<(), Box<dyn Error>> {
+    fn load_module(&mut self, module_path: &str) -> Result<(), Box<dyn Error>> {
         Python::with_gil(|py| {
-            println!("Loading module: {}", module_path); // Debug print
-
             let module_file = format!("std/ffi/python/{}.py", module_path.replace('.', "/"));
             let module_code = fs::read_to_string(&module_file)
                 .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))?;
@@ -78,11 +69,6 @@ impl FFIProtocol for PythonFFI {
             let module = PyModule::from_code_bound(py, &module_code, &module_file, module_path)?;
 
             self.modules.insert(module_path.to_string(), module.into());
-
-            if let Some(alias_name) = alias {
-                self.aliases
-                    .insert(alias_name.to_string(), module_path.to_string());
-            }
 
             Ok(())
         })
@@ -95,11 +81,7 @@ impl FFIProtocol for PythonFFI {
             let module_path = module_parts.join(".");
             let func_name = func_name[0];
 
-            println!("Module path: {}, Function name: {}", module_path, func_name); // Debug print
-
-            let module_path = self.aliases.get(&module_path).unwrap_or(&module_path);
-            println!("Resolved module path: {}", module_path);
-            let module = self.modules.get(module_path).ok_or_else(|| {
+            let module = self.modules.get(&module_path).ok_or_else(|| {
                 PyRuntimeError::new_err(format!("Module not loaded: {}", module_path))
             })?;
             let func = module.getattr(py, func_name)?;

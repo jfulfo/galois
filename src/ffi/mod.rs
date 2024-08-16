@@ -2,14 +2,11 @@ pub mod python;
 
 use crate::syntax::Value;
 use std::collections::HashMap;
-use std::env;
 use std::error::Error;
-use std::path::PathBuf;
 
 pub trait FFIProtocol {
-    fn load_module(&mut self, module_path: &str, alias: Option<&str>)
-        -> Result<(), Box<dyn Error>>;
-    fn call_function(&self, func_path: &str, args: Vec<Value>) -> Result<Value, Box<dyn Error>>;
+    fn load_module(&mut self, module_path: &str) -> Result<(), Box<dyn Error>>;
+    fn call_function(&self, func_name: &str, args: Vec<Value>) -> Result<Value, Box<dyn Error>>;
 }
 
 #[derive(Debug)]
@@ -41,47 +38,20 @@ impl Error for FFIError {}
 
 pub struct FFIBackend {
     pub modules: HashMap<String, Box<dyn FFIProtocol>>,
+    pub module_to_language: HashMap<String, String>,
 }
 
 impl FFIBackend {
     pub fn new() -> Self {
         FFIBackend {
             modules: HashMap::new(),
+            module_to_language: HashMap::new(),
         }
-    }
-
-    fn get_galois_path() -> Vec<PathBuf> {
-        env::var("GALOIS_PATH")
-            .unwrap_or_else(|_| String::from("./std/ffi"))
-            .split(':')
-            .map(PathBuf::from)
-            .collect()
-    }
-
-    fn find_module_file(module_name: &str) -> Option<PathBuf> {
-        for path in Self::get_galois_path() {
-            let full_path = path.join(format!("{}.py", module_name));
-            if full_path.exists() {
-                return Some(full_path);
-            }
-        }
-        None
-    }
-
-    fn load_ffi_protocol(&self, _module_name: &str) -> Result<Box<dyn FFIProtocol>, FFIError> {
-        // Dynamically load the appropriate FFI protocol
-        Ok(Box::new(
-            crate::ffi::python::PythonFFI::new().map_err(|e| FFIError::LoadError(e.to_string()))?,
-        ))
     }
 }
 
 impl FFIProtocol for FFIBackend {
-    fn load_module(
-        &mut self,
-        module_path: &str,
-        alias: Option<&str>,
-    ) -> Result<(), Box<dyn Error>> {
+    fn load_module(&mut self, module_path: &str) -> Result<(), Box<dyn Error>> {
         let parts: Vec<&str> = module_path.split('.').collect();
         let language = parts[0];
         let module_name = parts[1..].join(".");
@@ -101,17 +71,20 @@ impl FFIProtocol for FFIBackend {
         self.modules
             .get_mut(language)
             .unwrap()
-            .load_module(&module_name, alias)
+            .load_module(&module_name)?;
+
+        self.module_to_language
+            .insert(module_name, language.to_string());
+
+        Ok(())
     }
 
-    fn call_function(&self, func_path: &str, args: Vec<Value>) -> Result<Value, Box<dyn Error>> {
-        let parts: Vec<&str> = func_path.split('.').collect();
-        let language = parts[0];
-        let function_path = parts[1..].join(".");
-
+    fn call_function(&self, func_name: &str, args: Vec<Value>) -> Result<Value, Box<dyn Error>> {
+        let module_name = "ffi_effects";
+        let language = "python";
         self.modules
             .get(language)
             .ok_or_else(|| format!("Language not loaded: {}", language))?
-            .call_function(&function_path, args)
+            .call_function(&format!("{}.{}", module_name, func_name), args)
     }
 }
