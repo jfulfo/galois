@@ -1,6 +1,7 @@
 // main.rs
 
 mod debug;
+mod ffi;
 mod interpreter;
 mod parser;
 mod syntax;

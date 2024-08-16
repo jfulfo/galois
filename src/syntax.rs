@@ -12,6 +12,7 @@ pub enum Primitive {
     String(String),
     Bool(bool),
     // TODO: need to define what exprs can actually be in an array better
+    // e.g. "fjdlfkjsdfls" is allowed?
     Array(Vec<Rc<Expr>>),
 }
 
@@ -73,10 +74,10 @@ pub enum Expr {
     FunctionCall(Rc<Expr>, Vec<Rc<Expr>>),
     Return(Rc<Expr>),
     Assignment(String, Rc<Expr>),
-    FFIDecl(String, Option<String>),
+    FFIDecl(String, String, Option<String>),
     // think if we just want this to be a function call
     // that is added to the environment
-    FFICall(String, String, Vec<Rc<Expr>>),
+    // FFICall(String, String, Vec<Rc<Expr>>),
     InfixOp(Rc<Expr>, String, Rc<Expr>),
     NotationDecl(NotationPattern, Rc<Expr>),
 }
@@ -85,6 +86,7 @@ pub enum Expr {
 pub enum Value {
     Primitive(Primitive),
     Function(String, Vec<String>, Vec<Rc<Expr>>, Rc<RefCell<Environment>>),
+    Ffi(String),
     PartialApplication(Rc<Value>, Vec<Value>),
 }
 
@@ -103,6 +105,7 @@ impl fmt::Debug for Value {
             Value::PartialApplication(func, args) => {
                 write!(f, "partial application of {:?} with {:?}", func, args)
             }
+            Value::Ffi(s) => write!(f, "{}", s),
         }
     }
 }
@@ -127,6 +130,7 @@ impl fmt::Display for Value {
                     args.len()
                 )
             }
+            Value::Ffi(s) => write!(f, "{}", s),
         }
     }
 }
@@ -163,24 +167,18 @@ impl fmt::Debug for Expr {
                 write!(f, "{} = ", name)?;
                 fmt::Debug::fmt(e, f)
             }
-            Expr::FFIDecl(name, given_name) => match given_name {
+            Expr::FFIDecl(module, name, given_name) => match given_name {
                 Some(given_name) => {
-                    write!(f, "FFI Declaration: {} as {}", name, given_name)
+                    write!(
+                        f,
+                        "FFI Declaration: from {} use {} as {}",
+                        module, name, given_name
+                    )
                 }
                 None => {
-                    write!(f, "FFI Declaration: {}", name)
+                    write!(f, "FFI Declaration: from {} use {}", module, name)
                 }
             },
-            Expr::FFICall(module, func, args) => {
-                write!(f, "FFI call: {}::{}(", module, func)?;
-                for (i, arg) in args.iter().enumerate() {
-                    if i > 0 {
-                        write!(f, ", ")?
-                    }
-                    fmt::Debug::fmt(arg, f)?;
-                }
-                write!(f, ")")
-            }
             Expr::NotationDecl(pattern, expansion) => {
                 write!(f, "notation declaration: {} -> ", pattern)?;
                 fmt::Debug::fmt(expansion, f)

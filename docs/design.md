@@ -102,3 +102,22 @@ if we want arbitrary parts of the program to be parallelizable, then we always w
 (partial applications if needed).
 if we want to step as much as we can, then we need to step blocks of code that may contain "holes" in the program
 where we don't have a defined assignments for a variable.
+
+## various notes on ffi
+
+there are many different ways we can view the denotation of our ffi backend that we want to implement.
+here is the idea i am going for so far.
+
+- variable assignments as a functor: for the purposes of our ffi, it will be infeasible to make an "object to primitive"
+  and vice versa for everything. semantically we will want the variable to be "pointing" to some object from another program in
+  galois or another language. this will allow us to make an "ffi" for galois itself.
+- universal glue: we want galois to be a kind of universal glue between programming languages, but also completely general-purpose
+  alternatively, galois is the "super" or "meta" graph connecting different computation graphs (i.e. the ffi's).
+  from this we will have the ability to paralleize very easy by being resource minded. eventually we will make the language
+  affine.
+- similarly to the infeasibility of variable assignments, we will need a way to use actual outside code in a good way.
+  this is best seen as an example. in the current implmentation in [ffi_numpy.py](../std/ffi/python/ffi_numpy.py),
+  we have to predefine all the functions in numpy and wrap them. this should be easily automatable, at least for python.
+  if we combine this with the functor view then it should give us the tooling? we will see.
+  make sure we follow the separation of concerns here. the interpreter shouldn't have to know what the ffis are actually doing or
+  which one is being used -- so it has to be general.

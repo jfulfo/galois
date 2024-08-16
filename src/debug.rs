@@ -25,7 +25,7 @@ impl fmt::Display for CallFrame {
 }
 
 pub struct DebugPrinter {
-    debug_mode: bool,
+    pub debug_mode: bool,
 }
 
 impl DebugPrinter {
@@ -105,10 +105,13 @@ impl DebugPrinter {
                     println!("{}Arg {}: {:?}", indent, i, arg);
                 }
             }
+            Value::Ffi(s) => {
+                println!("{}Foreign Function Interface: {:?}", indent, s);
+            }
         }
     }
 
-    pub fn log_expr(&self, expr: &Expr, env: &Environment, depth: usize) {
+    pub fn log_expr(&self, expr: &Expr, _env: &Environment, depth: usize) {
         if !self.debug_mode {
             return;
         }
@@ -124,41 +127,36 @@ impl DebugPrinter {
                     params.join(", ")
                 );
                 println!("{}Body:", indent);
-                body.iter().for_each(|e| self.log_expr(e, env, depth + 1));
+                body.iter().for_each(|e| self.log_expr(e, _env, depth + 1));
             }
             Expr::FunctionCall(func, args) => {
                 println!("{}Function Call:", indent);
-                self.log_expr(func, env, depth + 1);
+                self.log_expr(func, _env, depth + 1);
                 println!("{}Arguments:", indent);
                 for (i, arg) in args.iter().enumerate() {
                     println!("{}Arg {}:", indent, i);
-                    self.log_expr(arg, env, depth + 2);
+                    self.log_expr(arg, _env, depth + 2);
                 }
             }
             Expr::Return(e) => {
                 println!("{}Return:", indent);
-                self.log_expr(e, env, depth + 1);
+                self.log_expr(e, _env, depth + 1);
             }
             Expr::Assignment(name, e) => {
                 println!("{}Assignment: {}", indent, name);
-                self.log_expr(e, env, depth + 1);
+                self.log_expr(e, _env, depth + 1);
             }
-            Expr::FFIDecl(name, given_name) => match given_name {
+            Expr::FFIDecl(module, name, given_name) => match given_name {
                 Some(given_name) => {
-                    println!("{}FFI Declaration: {} as {}", indent, name, given_name);
+                    println!(
+                        "{}FFI Declaration: from {} use {} as {}",
+                        indent, module, name, given_name
+                    );
                 }
                 None => {
-                    println!("{}FFI Declaration: {}", indent, name);
+                    println!("{}FFI Declaration: from {} use {}", indent, module, name);
                 }
             },
-            Expr::FFICall(module, func, args) => {
-                println!("{}FFI Call: {}::{}", indent, module, func);
-                println!("{}Arguments:", indent);
-                for (i, arg) in args.iter().enumerate() {
-                    println!("{}Arg {}:", indent, i);
-                    self.log_expr(arg, env, depth + 1);
-                }
-            }
             Expr::NotationDecl(pattern, expansion) => {
                 println!("{}Notation Declaration:", indent);
                 println!("{}Pattern: {}", indent, pattern);

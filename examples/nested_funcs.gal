@@ -1,15 +1,14 @@
 fn compose(f, g) {
-    fn composed(x) {
+    return composed(x) {
         f(g(x))
     }
-    composed
 }
 
 fn id(x) { x }
 
 fn wrap(x) {
     fn inner(y) { y }
-    inner(x)
+    return inner(x)
 }
 
 func = compose(wrap, id)

@@ -125,13 +125,20 @@ fn parse_array(input: &str) -> ParseResult<Vec<Rc<Expr>>> {
     )(input)
 }
 
+fn parse_identifier(input: &str) -> ParseResult<&str> {
+    recognize(pair(
+        alt((alpha1, tag("_"), tag("."))),
+        many0(alt((alphanumeric1, tag("_"), tag(".")))),
+    ))(input)
+}
+
 fn parse_variable(input: &str) -> ParseResult<Rc<Expr>> {
     context(
         "variable",
         map(
             recognize(pair(
-                alt((alpha1, tag("_"))),
-                many0(alt((alphanumeric1, tag("_")))),
+                alt((alpha1, tag("_"), tag("."))),
+                many0(alt((alphanumeric1, tag("_"), tag(".")))),
             )),
             |s: &str| Rc::new(Expr::Variable(s.to_string())),
         ),
@@ -159,7 +166,7 @@ fn parse_function_def(input: &str) -> ParseResult<Rc<Expr>> {
         "function definition",
         map(
             tuple((
-                preceded(pair(tag("fn"), ws), parse_variable),
+                preceded(pair(opt(tag("fn")), ws), parse_variable),
                 delimited(
                     char('('),
                     separated_list0(delimited(ws, char(','), ws), parse_variable),
@@ -310,22 +317,15 @@ fn parse_ffi_decl(input: &str) -> ParseResult<Rc<Expr>> {
         "ffi declaration",
         map(
             tuple((
-                preceded(pair(tag("using"), ws), parse_variable),
-                opt(preceded(
-                    delimited(ws, tag("as"), ws),
-                    map(
-                        recognize(pair(
-                            alt((alpha1, tag("_"))),
-                            many0(alt((alphanumeric1, tag("_")))),
-                        )),
-                        |s: &str| s.to_string(),
-                    ),
-                )),
+                preceded(pair(tag("from"), ws), parse_identifier),
+                preceded(delimited(ws, tag("use"), ws), parse_identifier),
+                opt(preceded(delimited(ws, tag("as"), ws), parse_identifier)),
             )),
-            |(ffi_name, name)| {
+            |(module, name, alias)| {
                 Rc::new(Expr::FFIDecl(
-                    ffi_name.to_string(),
-                    name.map_or_else(|| None, Some),
+                    module.to_string(),
+                    name.to_string(),
+                    alias.map(|a| a.to_string()),
                 ))
             },
         ),

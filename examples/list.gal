@@ -2,32 +2,34 @@ fn list(acc, f) {
   acc = f(acc, 0)
   acc = f(acc, 1)
   acc = f(acc, 2)
-  acc
+  return acc
 }
 
 fn list_id(l) {
   fn ret(acc, f) {
     fn foreach(accprime, x) {
       accprime = f(accprime, x)
-      accprime
+      return accprime
     }
     acc = l(acc, foreach)
-    acc
+    return acc
   }
-  ret
+  return ret
 }
 
 fn push_back(tail, head) {
   fn ret(acc, f) {
     acc = tail(acc, f)
     acc = f(acc, head)
-    acc
+    return acc
   }
-  ret
+  return ret
 }
 
-l2 = list_id(list)
-push_back(l2, 3)
+from python.ffi_effects use print_value as print
+
+prim = 3.14
+print(prim)
 
 /* this just prints `Result: function ret (acc, f) { { acc = tail(acc, f); acc = f(acc, head); acc } }`
    we something to "consume" the value (i.e. an effect). currently we do not have a way of doing this.

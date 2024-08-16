@@ -1,10 +1,9 @@
 fn id(x) {
-  x
+  return x
 }
 
 fn app(f,x) {
-  f(x)
+  return f(x)
 }
 
-x = id("hello")
-app(id, [fn easy(y) { y }, 3.14])
+app(id, [easy(y) { y }, 3.14])
