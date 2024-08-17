@@ -1,7 +1,7 @@
 fn list(acc, f) {
-  acc = f(0)
-  acc = f(1)
-  acc = f(2)
+  acc = f(acc, 0)
+  acc = f(acc, 1)
+  acc = f(acc, 2)
   return acc
 }
 
@@ -26,10 +26,15 @@ fn push_back(tail, head) {
   return ret
 }
 
-/* this just prints `Result: function ret (acc, f) { { acc = tail(acc, f); acc = f(acc, head); acc } }`
-   we something to "consume" the value (i.e. an effect). currently we do not have a way of doing this.
-   we need a `general` way to communicate with the outside world. */
+from python.ffi_effects use print_value as print
 
-from python.ffi_effects use print_list as print
+fn print_list(l, initial) {
+  fn foreach(acc, x) {
+    print(x)
+    return acc
+  }
 
-list("x", print)
+  l(initial, foreach)
+}
+
+print_list(list, false)

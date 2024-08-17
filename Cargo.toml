@@ -2,7 +2,7 @@ cargo-features = ["edition2024", "profile-rustflags"]
 
 [workspace]
 [profile.dev]
-rustflags = ["-Adead_code"]
+rustflags = ["-Adead_code", "-Aunreachable_code"]
 
 [package]
 name = "galois"

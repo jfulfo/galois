@@ -2,7 +2,7 @@
 
 
 def print_value(x):
-    print(str(x))
+    print(x)
 
 
 def print_list(lst):

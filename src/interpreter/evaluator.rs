@@ -75,9 +75,15 @@ impl Interpreter {
             }
             Expr::FunctionCall(func, args) => {
                 let func_value = self.eval_expr(func)?;
-                // bug here because in the .map self.env gets overwritten?
-                let arg_values: Result<Vec<Value>, InterpreterError> =
-                    args.iter().map(|arg| self.eval_expr(arg)).collect();
+                let original_env = Rc::clone(&self.env);
+                let arg_values: Result<Vec<Value>, InterpreterError> = args
+                    .iter()
+                    .map(|arg| {
+                        self.env = Rc::clone(&original_env);
+                        self.eval_expr(arg)
+                    })
+                    .collect();
+                self.env = original_env;
                 self.apply_function(func_value, arg_values?)
             }
             Expr::Return(e) => self.eval_expr(e),
@@ -127,6 +133,7 @@ impl Interpreter {
                 for (param, arg) in params.iter().zip(args.iter()) {
                     new_env.insert(param.clone(), arg.clone());
                 }
+                let saved_env = Rc::clone(&self.env);
                 self.env = Rc::new(RefCell::new(new_env));
 
                 let result = body
@@ -134,6 +141,8 @@ impl Interpreter {
                     .try_fold(Value::Primitive(Primitive::Bool(false)), |_, expr| {
                         self.eval_expr(expr)
                     });
+
+                self.env = saved_env;
                 self.debug
                     .log_exit(&name, &result.clone().map_err(|e| e.to_string()));
 

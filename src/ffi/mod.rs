@@ -3,6 +3,7 @@ pub mod python;
 use crate::syntax::Value;
 use std::collections::HashMap;
 use std::error::Error;
+use std::fmt;
 
 pub trait FFIProtocol {
     fn load_module(&mut self, module_path: &str) -> Result<(), Box<dyn Error>>;
@@ -19,7 +20,7 @@ pub enum FFIError {
     CallError(String),
 }
 
-impl std::fmt::Display for FFIError {
+impl fmt::Display for FFIError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             FFIError::ModuleNotFound(name) => write!(f, "Module not found: {}", name),

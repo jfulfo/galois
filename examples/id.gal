@@ -6,4 +6,4 @@ fn app(f,x) {
   return f(x)
 }
 
-app(id, [easy(y) { y }, 3.14])
+app(id, true)
