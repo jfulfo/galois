@@ -4,6 +4,7 @@ use super::FFIProtocol;
 use crate::syntax::{Primitive, Value};
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
+use pyo3::types::PyTuple;
 use std::collections::HashMap;
 use std::error::Error;
 use std::fs;
@@ -92,7 +93,7 @@ impl FFIProtocol for PythonFFI {
             let result = if py_args.is_empty() {
                 func.call0(py)?
             } else {
-                func.call1(py, (py_args,))?
+                func.call1(py, PyTuple::new_bound(py, py_args.as_slice()))?
             };
             Ok(self.convert_from_python(result))
         })

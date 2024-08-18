@@ -37,4 +37,4 @@ fn print_list(l, initial) {
   l(initial, foreach)
 }
 
-print_list(list, false)
+print_list(push_back(list, 3), false)
