@@ -1,8 +1,8 @@
-fn id(x) {
+fun id(x) {
   return x
 }
 
-fn app(f,x) {
+fun app(f,x) {
   return f(x)
 }
 

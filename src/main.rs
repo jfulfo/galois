@@ -28,9 +28,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut debug_printer = DebugPrinter::new(debug_mode);
 
+    let parse_time = Instant::now();
+    let parsed = parse_program(&content);
+    let parse_duration = parse_time.elapsed();
+
     let start_time = Instant::now();
 
-    match parse_program(&content) {
+    match parsed {
         Ok(exprs) => {
             if debug_mode {
                 for expr in &exprs {
@@ -43,8 +47,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         println!("Result:");
                         debug_printer.log_value(&result, 0);
                         debug_printer.print_timings();
-                    } else {
-                        println!("{}", result);
                     }
                 }
                 Err(e) => {
@@ -60,7 +62,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let duration = start_time.elapsed();
-    println!("took {:?}", duration);
+    if debug_mode {
+        println!("parse took {:?}", parse_duration);
+        println!("execution took {:?}", duration);
+    } else {
+        println!("took {:?}", duration);
+    }
 
     Ok(())
 }

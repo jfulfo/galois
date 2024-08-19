@@ -1,13 +1,13 @@
-fn list(acc, f) {
+fun list(acc, f) {
   acc = f(acc, 0)
   acc = f(acc, 1)
   acc = f(acc, 2)
   return acc
 }
 
-fn list_id(l) {
-  fn ret(acc, f) {
-    fn foreach(accprime, x) {
+fun list_id(l) {
+  fun ret(acc, f) {
+    fun foreach(accprime, x) {
       accprime = f(accprime, x)
       return accprime
     }
@@ -17,8 +17,8 @@ fn list_id(l) {
   return ret
 }
 
-fn push_back(tail, head) {
-  fn ret(acc, f) {
+fun push_back(tail, head) {
+  fun ret(acc, f) {
     acc = tail(acc, f)
     acc = f(acc, head)
     return acc
@@ -26,10 +26,10 @@ fn push_back(tail, head) {
   return ret
 }
 
-from python.ffi_effects use print_value as print
+from python.effects use print_value as print
 
-fn print_list(l, initial) {
-  fn foreach(acc, x) {
+fun print_list(l, initial) {
+  fun foreach(acc, x) {
     print(x)
     return acc
   }

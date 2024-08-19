@@ -16,6 +16,8 @@ use std::rc::Rc;
 
 type ParseResult<'a, O> = IResult<&'a str, O, VerboseError<&'a str>>;
 
+const FUNCTION_DECLARATION: &str = "fun";
+
 fn log_parse_attempt<'a, F, O>(context: &str, mut f: F) -> impl FnMut(&'a str) -> ParseResult<'a, O>
 where
     F: FnMut(&'a str) -> ParseResult<'a, O>,
@@ -166,7 +168,7 @@ fn parse_function_def(input: &str) -> ParseResult<Rc<Expr>> {
         "function definition",
         map(
             tuple((
-                preceded(pair(opt(tag("fn")), ws), parse_variable),
+                preceded(pair(opt(tag(FUNCTION_DECLARATION)), ws), parse_variable),
                 delimited(
                     char('('),
                     separated_list0(delimited(ws, char(','), ws), parse_variable),

@@ -1,15 +1,18 @@
-fn compose(f, g) {
+fun compose(f, g) {
     return composed(x) {
         f(g(x))
     }
 }
 
-fn id(x) { x }
+fun id(x) { x }
 
-fn wrap(x) {
-    fn inner(y) { y }
+fun wrap(x) {
+    fun inner(y) { y }
     return inner(x)
 }
 
+from python.effects use print_value as print
 func = compose(wrap, id)
-func("hello world")
+print(func("hello world"))
+
+

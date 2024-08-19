@@ -12,7 +12,6 @@ pub enum Primitive {
     String(String),
     Bool(bool),
     // TODO: need to define what exprs can actually be in an array better
-    // e.g. "fjdlfkjsdfls" is allowed?
     Array(Vec<Rc<Expr>>),
 }
 
@@ -75,9 +74,6 @@ pub enum Expr {
     Return(Rc<Expr>),
     Assignment(String, Rc<Expr>),
     FFIDecl(String, String, Option<String>),
-    // think if we just want this to be a function call
-    // that is added to the environment
-    // FFICall(String, String, Vec<Rc<Expr>>),
     InfixOp(Rc<Expr>, String, Rc<Expr>),
     NotationDecl(NotationPattern, Rc<Expr>),
 }

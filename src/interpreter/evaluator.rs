@@ -93,7 +93,8 @@ impl Interpreter {
                 Ok(value)
             }
             Expr::FFIDecl(module, name, alias) => {
-                self.ffi
+                let _ = self
+                    .ffi
                     .load_module(module)
                     .map_err(|e| InterpreterError::FFIError(e.to_string()))?;
 

@@ -34,9 +34,10 @@ impl PythonFFI {
                     unimplemented!()
                 }
             },
-            Value::Function(_, _, _, _) => py.None(),
-            Value::Ffi(_) => py.None(),
-            Value::PartialApplication(_, _) => py.None(),
+            Value::Function(name, params, body, _) => {
+                todo!()
+            }
+            _ => py.None(),
         })
     }
 
@@ -61,7 +62,8 @@ impl PythonFFI {
 }
 
 impl FFIProtocol for PythonFFI {
-    fn load_module(&mut self, module_path: &str) -> Result<(), Box<dyn Error>> {
+    // returns a list of function names
+    fn load_module(&mut self, module_path: &str) -> Result<Vec<String>, Box<dyn Error>> {
         Python::with_gil(|py| {
             let module_file = format!("std/ffi/python/{}.py", module_path.replace('.', "/"));
             let module_code = fs::read_to_string(&module_file)
@@ -69,9 +71,16 @@ impl FFIProtocol for PythonFFI {
 
             let module = PyModule::from_code_bound(py, &module_code, &module_file, module_path)?;
 
-            self.modules.insert(module_path.to_string(), module.into());
+            self.modules
+                .insert(module_path.to_string(), module.clone().into());
 
-            Ok(())
+            let function_names = module
+                .dir()?
+                .iter()
+                .map(|item| item.to_string())
+                .collect::<Vec<String>>();
+
+            Ok(function_names)
         })
     }
 
